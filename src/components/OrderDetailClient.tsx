@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -8,9 +8,11 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  Download,
   KeyRound,
   Loader2,
   QrCode,
+  RefreshCw,
   ShieldCheck,
   Zap,
 } from "lucide-react";
@@ -26,13 +28,59 @@ function formatRupiah(value: number) {
 
 export default function OrderDetailClient({
   initialOrder,
+  qrDataUrl,
+  demoAllowed,
 }: {
   initialOrder: Order;
+  qrDataUrl: string | null;
+  demoAllowed: boolean;
 }) {
   const [order, setOrder] = useState<Order>(initialOrder);
   const [paying, setPaying] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [copiedAmount, setCopiedAmount] = useState(false);
+
+  const payableAmount = order.payableAmount ?? order.totalPrice;
+
+  // Auto-polling status setiap 4 detik saat masih pending (agar langsung lunas otomatis saat webhook GoPay Merchant masuk)
+  useEffect(() => {
+    if (order.status !== "pending") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(order.id)}`, {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.order && data.order.status !== order.status) {
+            setOrder(data.order);
+          }
+        }
+      } catch {
+        // abaikan error jaringan sementara saat polling
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [order.id, order.status]);
+
+  async function handleCheckStatus() {
+    setChecking(true);
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(order.id)}`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.order) setOrder(data.order);
+      }
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function handleConfirmPayment() {
     setPaying(true);
@@ -60,7 +108,17 @@ export default function OrderDetailClient({
       setCopiedIdx(idx);
       setTimeout(() => setCopiedIdx(null), 2000);
     } catch {
-      // ignore clipboard errors
+      // ignore
+    }
+  }
+
+  async function copyPayableAmount() {
+    try {
+      await navigator.clipboard.writeText(String(payableAmount));
+      setCopiedAmount(true);
+      setTimeout(() => setCopiedAmount(false), 2000);
+    } catch {
+      // ignore
     }
   }
 
@@ -79,9 +137,7 @@ export default function OrderDetailClient({
           {/* Status Banner */}
           <div
             className={`px-6 py-5 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-3 ${
-              order.status === "paid"
-                ? "bg-emerald-500/10"
-                : "bg-amber-500/10"
+              order.status === "paid" ? "bg-emerald-500/10" : "bg-amber-500/10"
             }`}
           >
             <div className="flex items-center gap-3">
@@ -95,7 +151,7 @@ export default function OrderDetailClient({
                 <h1 className="font-bold text-lg text-white">
                   {order.status === "paid"
                     ? "Pembayaran Lunas • Akun Terkirim"
-                    : "Menunggu Pembayaran"}
+                    : "Menunggu Pembayaran QRIS"}
                 </h1>
               </div>
             </div>
@@ -122,12 +178,13 @@ export default function OrderDetailClient({
                 <span className="text-zinc-400 block">{order.duration}</span>
               </div>
               <div className="text-right">
-                <span className="text-zinc-500 block">Total Bayar</span>
+                <span className="text-zinc-500 block">Total Bayar (Tepat)</span>
                 <span className="font-extrabold text-indigo-400 text-base">
-                  {formatRupiah(order.totalPrice)}
+                  {formatRupiah(payableAmount)}
                 </span>
                 <span className="text-zinc-400 block">
-                  {order.quantity} akun × {formatRupiah(order.unitPrice)}
+                  {order.quantity} × {formatRupiah(order.unitPrice)}
+                  {order.uniqueCode ? ` (+${order.uniqueCode} kode unik)` : ""}
                 </span>
               </div>
               <div className="pt-3 border-t border-zinc-800/80">
@@ -140,7 +197,7 @@ export default function OrderDetailClient({
               <div className="pt-3 border-t border-zinc-800/80 text-right">
                 <span className="text-zinc-500 block">Metode Pembayaran</span>
                 <span className="text-zinc-200 font-semibold">
-                  {order.paymentMethod}
+                  {order.paymentMethod} (GoPay Merchant)
                 </span>
                 <span className="text-zinc-400 block">{order.customerWhatsapp}</span>
               </div>
@@ -155,43 +212,99 @@ export default function OrderDetailClient({
             {/* Pending Payment Section */}
             {order.status === "pending" && (
               <div className="rounded-2xl bg-zinc-950 border border-zinc-800 p-6 text-center space-y-4">
-                <div className="w-44 h-44 mx-auto rounded-2xl bg-white p-3 flex flex-col items-center justify-center text-zinc-900 shadow-lg">
-                  <QrCode className="w-28 h-28 text-zinc-900" />
-                  <span className="text-[10px] font-bold tracking-widest mt-1">
-                    {order.paymentMethod} AUTO-PAY
-                  </span>
-                </div>
+                {qrDataUrl ? (
+                  <div className="space-y-3">
+                    <div className="inline-block rounded-2xl bg-white p-3.5 shadow-xl">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qrDataUrl}
+                        alt="QRIS GoPay Merchant Dinamis"
+                        className="w-56 h-56 mx-auto"
+                      />
+                      <div className="text-[11px] font-extrabold text-zinc-900 tracking-wider mt-1.5">
+                        QRIS GOPAY MERCHANT • NOMINAL OTOMATIS
+                      </div>
+                    </div>
 
-                <div>
-                  <p className="text-sm font-semibold text-white">
-                    Scan QRIS / Transfer sebesar{" "}
-                    <span className="text-indigo-400">
-                      {formatRupiah(order.totalPrice)}
+                    <div>
+                      <a
+                        href={qrDataUrl}
+                        download={`QRIS-${order.id}.png`}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-200 transition"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download Gambar QRIS
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-44 h-44 mx-auto rounded-2xl bg-white p-3 flex flex-col items-center justify-center text-zinc-900 shadow-lg">
+                    <QrCode className="w-28 h-28 text-zinc-900" />
+                    <span className="text-[10px] font-bold tracking-widest mt-1">
+                      QRIS BELUM DIATUR
                     </span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-white">
+                    Scan QRIS & Bayar Tepat Sebesar:
                   </p>
-                  <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto">
-                    Mode demo/sandbox aktif: klik tombol di bawah untuk mensimulasikan
-                    pembayaran sukses & memicu pengiriman akun otomatis dari stok.
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30">
+                    <span className="text-xl font-extrabold text-indigo-300 font-mono">
+                      {formatRupiah(payableAmount)}
+                    </span>
+                    <button
+                      onClick={copyPayableAmount}
+                      className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 cursor-pointer"
+                      title="Salin nominal tepat"
+                    >
+                      {copiedAmount ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                    {qrDataUrl
+                      ? "Nominal sudah otomatis terisi saat QRIS di-scan (GoPay, DANA, OVO, ShopeePay, BCA, BRI, Mandiri, SeaBank). Halaman ini otomatis mendeteksi pembayaran dalam beberapa detik."
+                      : "Admin belum mengisi String QRIS GoPay Merchant di /admin → Pengaturan QRIS & Telegram."}
                   </p>
                 </div>
 
-                <button
-                  onClick={handleConfirmPayment}
-                  disabled={paying}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm inline-flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-600/20 disabled:opacity-60 cursor-pointer"
-                >
-                  {paying ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Memverifikasi & Mengirim Akun...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4" />
-                      Konfirmasi Pembayaran (Auto Kirim Akun)
-                    </>
+                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                  <button
+                    onClick={handleCheckStatus}
+                    disabled={checking}
+                    className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 ${checking ? "animate-spin" : ""}`}
+                    />
+                    Cek Status Pembayaran
+                  </button>
+
+                  {demoAllowed && (
+                    <button
+                      onClick={handleConfirmPayment}
+                      disabled={paying}
+                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs inline-flex items-center gap-2 transition shadow-lg shadow-emerald-600/20 disabled:opacity-60 cursor-pointer"
+                    >
+                      {paying ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Memproses...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5" />
+                          Simulasi Bayar (Mode Demo)
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+                </div>
               </div>
             )}
 

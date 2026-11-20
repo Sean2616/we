@@ -18,13 +18,34 @@ export async function GET(request: Request) {
       0
     );
     const paidOrders = db.orders.filter((o) => o.status === "paid");
-    const totalRevenue = paidOrders.reduce((sum, o) => sum + o.totalPrice, 0);
+    const totalRevenue = paidOrders.reduce(
+      (sum, o) => sum + (o.payableAmount ?? o.totalPrice),
+      0
+    );
+
+    const effectiveSettings = {
+      qrisStaticString:
+        db.settings?.qrisStaticString || process.env.QRIS_STATIC_STRING || "",
+      webhookSecret:
+        db.settings?.webhookSecret ||
+        process.env.WEBHOOK_SECRET ||
+        "gopay-webhook-secret-2026",
+      telegramBotToken:
+        db.settings?.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || "",
+      telegramChatId:
+        db.settings?.telegramChatId || process.env.TELEGRAM_CHAT_ID || "",
+      enableDemoConfirm:
+        db.settings?.enableDemoConfirm !== undefined
+          ? db.settings.enableDemoConfirm
+          : !(db.settings?.qrisStaticString || process.env.QRIS_STATIC_STRING),
+    };
 
     return NextResponse.json({
       ok: true,
       storageMode: getStorageMode(),
       products: db.products,
       orders: db.orders,
+      settings: effectiveSettings,
       stats: {
         totalProducts: db.products.length,
         totalAvailableStock,

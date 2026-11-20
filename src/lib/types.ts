@@ -8,7 +8,7 @@ export type ProductCategory =
 
 export interface StockItem {
   id: string;
-  credentials: string; // e.g. "email@domain.com | password123 | Profile 2 PIN 1234"
+  credentials: string;
   note?: string;
   status: "available" | "sold";
   orderId?: string;
@@ -27,8 +27,8 @@ export interface Product {
   badge?: string;
   description: string;
   features: string[];
-  accentColor: string; // hex or tailwind gradient token
-  icon: string; // short label or emoji
+  accentColor: string;
+  icon: string;
   stock: StockItem[];
   updatedAt: string;
 }
@@ -53,6 +53,10 @@ export interface Order {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  uniqueCode?: number;
+  payableAmount?: number;
+  qrisPayload?: string;
+  paidVia?: "gopay-webhook" | "admin-manual" | "demo";
   customerName: string;
   customerEmail: string;
   customerWhatsapp: string;
@@ -63,13 +67,17 @@ export interface Order {
   paidAt?: string;
 }
 
+export interface StoreSettings {
+  qrisStaticString?: string;
+  webhookSecret?: string;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  enableDemoConfirm?: boolean;
+}
+
 export interface StoreDatabase {
   products: Product[];
   orders: Order[];
+  settings?: StoreSettings;
   lastSyncedAt: string | null;
-}
-
-export interface SyncPayload {
-  mode?: "replace" | "merge";
-  products: Product[];
 }

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { readDatabase, writeDatabase } from "@/lib/storage";
+import { convertStaticToDynamicQris } from "@/lib/qris";
+import { notifyNewOrder } from "@/lib/telegram";
 import { Order, PaymentMethod } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,26 @@ function generateOrderId(): string {
   ).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
   const randomPart = Math.random().toString(36).substring(2, 7).toUpperCase();
   return `INV-${datePart}-${randomPart}`;
+}
+
+function generateUniqueCode(baseTotal: number, existingOrders: Order[]): number {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const usedTotals = new Set(
+    existingOrders
+      .filter(
+        (o) =>
+          o.status === "pending" && new Date(o.createdAt).getTime() >= cutoff
+      )
+      .map((o) => o.payableAmount ?? o.totalPrice)
+  );
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const code = Math.floor(Math.random() * 899) + 101; // 101 - 999
+    if (!usedTotals.has(baseTotal + code)) {
+      return code;
+    }
+  }
+  return Math.floor(Math.random() * 899) + 101;
 }
 
 export async function GET(request: Request) {
@@ -87,6 +109,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const totalPrice = product.price * quantity;
+    const uniqueCode = generateUniqueCode(totalPrice, db.orders);
+    const payableAmount = totalPrice + uniqueCode;
+
+    // Generate Dynamic QRIS jika string QRIS GoPay Merchant sudah diatur
+    const staticQris = (
+      db.settings?.qrisStaticString ||
+      process.env.QRIS_STATIC_STRING ||
+      ""
+    ).trim();
+    const qrisPayload = staticQris
+      ? convertStaticToDynamicQris(staticQris, payableAmount) || undefined
+      : undefined;
+
     const order: Order = {
       id: generateOrderId(),
       productId: product.id,
@@ -94,7 +130,10 @@ export async function POST(request: Request) {
       duration: product.duration,
       quantity,
       unitPrice: product.price,
-      totalPrice: product.price * quantity,
+      totalPrice,
+      uniqueCode,
+      payableAmount,
+      qrisPayload,
       customerName,
       customerEmail,
       customerWhatsapp,
@@ -106,6 +145,13 @@ export async function POST(request: Request) {
 
     db.orders.unshift(order);
     await writeDatabase(db);
+
+    // Kirim notifikasi order baru ke Telegram
+    try {
+      await notifyNewOrder(order, db.settings);
+    } catch (err) {
+      console.error("[Telegram notifyNewOrder error]", err);
+    }
 
     return NextResponse.json({ order }, { status: 201 });
   } catch (error) {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import QRCode from "qrcode";
 import { readDatabase } from "@/lib/storage";
 import OrderDetailClient from "@/components/OrderDetailClient";
 
@@ -35,5 +36,35 @@ export default async function OrderPage({
     );
   }
 
-  return <OrderDetailClient initialOrder={order} />;
+  let qrDataUrl: string | null = null;
+  if (order.qrisPayload) {
+    try {
+      qrDataUrl = await QRCode.toDataURL(order.qrisPayload, {
+        width: 320,
+        margin: 2,
+        color: {
+          dark: "#09090b",
+          light: "#ffffff",
+        },
+      });
+    } catch (err) {
+      console.error("[QRCode render error]", err);
+    }
+  }
+
+  const hasLiveQris = Boolean(
+    (db.settings?.qrisStaticString || process.env.QRIS_STATIC_STRING || "").trim()
+  );
+  const demoAllowed =
+    db.settings?.enableDemoConfirm !== undefined
+      ? db.settings.enableDemoConfirm
+      : !hasLiveQris;
+
+  return (
+    <OrderDetailClient
+      initialOrder={order}
+      qrDataUrl={qrDataUrl}
+      demoAllowed={demoAllowed}
+    />
+  );
 }
