@@ -69,23 +69,40 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const query = (searchParams.get("q") || "").trim().toLowerCase();
+    const idsParam = (searchParams.get("ids") || "").trim();
 
-    if (!query) {
+    if (!query && !idsParam) {
       return NextResponse.json(
-        { error: "Masukkan nomor invoice atau email untuk melacak pesanan" },
+        { error: "Masukkan nomor invoice, email, atau nomor WhatsApp." },
         { status: 400 }
       );
     }
 
     const db = await readDatabase();
+
+    if (idsParam) {
+      const idSet = new Set(
+        idsParam
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      );
+      const matchedByIds = db.orders
+        .filter((o) => idSet.has(o.id.toLowerCase()))
+        .slice(0, 30);
+      return NextResponse.json({ orders: matchedByIds });
+    }
+
+    const normalizedPhone = query.replace(/\D/g, "");
     const matched = db.orders
       .filter(
         (o) =>
           o.id.toLowerCase() === query ||
           o.customerEmail.toLowerCase() === query ||
-          o.customerWhatsapp.replace(/\D/g, "") === query.replace(/\D/g, "")
+          (normalizedPhone.length >= 8 &&
+            o.customerWhatsapp.replace(/\D/g, "") === normalizedPhone)
       )
-      .slice(0, 20);
+      .slice(0, 30);
 
     return NextResponse.json({ orders: matched });
   } catch (error) {

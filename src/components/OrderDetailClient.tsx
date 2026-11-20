@@ -44,6 +44,18 @@ export default function OrderDetailClient({
 
   const payableAmount = order.payableAmount ?? order.totalPrice;
 
+  // Simpan order ID ini di perangkat pembeli agar langsung terlihat di /riwayat
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("premstore_my_orders");
+      const existing: string[] = raw ? JSON.parse(raw) : [];
+      const updated = Array.from(new Set([order.id, ...existing])).slice(0, 30);
+      localStorage.setItem("premstore_my_orders", JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  }, [order.id]);
+
   useEffect(() => {
     if (order.status !== "pending") return;
 
@@ -124,13 +136,21 @@ export default function OrderDetailClient({
   return (
     <div className="min-h-screen dot-bg text-zinc-900 py-5 sm:py-8 px-3 sm:px-4">
       <div className="max-w-2xl mx-auto">
-        <Link
-          href="/"
-          className="brutal-btn bg-white inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900 mb-4 sm:mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Kembali ke Katalog
-        </Link>
+        <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
+          <Link
+            href="/"
+            className="brutal-btn bg-white inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Kembali ke Katalog
+          </Link>
+          <Link
+            href="/riwayat"
+            className="brutal-btn bg-[#8BD3DD] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900"
+          >
+            Riwayat Saya
+          </Link>
+        </div>
 
         <div className="brutal-card rounded-2xl bg-white overflow-hidden">
           {/* Status Banner */}

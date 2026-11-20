@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   Clock,
   CreditCard,
+  History,
   Loader2,
   Package,
   RefreshCw,
@@ -148,6 +150,16 @@ export default function StorefrontClient({
         return;
       }
 
+      // Simpan ID invoice di perangkat customer agar otomatis muncul di halaman /riwayat
+      try {
+        const raw = localStorage.getItem("premstore_my_orders");
+        const existing: string[] = raw ? JSON.parse(raw) : [];
+        const updated = Array.from(new Set([data.order.id, ...existing])).slice(0, 30);
+        localStorage.setItem("premstore_my_orders", JSON.stringify(updated));
+      } catch {
+        // ignore storage error
+      }
+
       router.push(`/order/${data.order.id}`);
     } catch {
       setCheckoutError("Koneksi bermasalah. Silakan coba lagi.");
@@ -212,18 +224,14 @@ export default function StorefrontClient({
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
-            <button
-              onClick={() => {
-                setTrackerOpen(true);
-                setTrackerResults(null);
-                setTrackerError(null);
-              }}
-              className="brutal-btn bg-white inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-zinc-900 cursor-pointer"
+            <Link
+              href="/riwayat"
+              className="brutal-btn bg-white inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-zinc-900"
             >
-              <Search className="w-3.5 h-3.5" />
-              <span>Lacak</span>
-              <span className="hidden sm:inline">Pesanan</span>
-            </button>
+              <History className="w-3.5 h-3.5" />
+              <span>Riwayat</span>
+              <span className="hidden sm:inline">Pembelian</span>
+            </Link>
 
             <a
               href={`https://wa.me/${whatsappAdmin}`}
