@@ -122,11 +122,11 @@ export default function OrderDetailClient({
   }
 
   return (
-    <div className="min-h-screen dot-bg text-zinc-900 py-8 px-4">
+    <div className="min-h-screen dot-bg text-zinc-900 py-5 sm:py-8 px-3 sm:px-4">
       <div className="max-w-2xl mx-auto">
         <Link
           href="/"
-          className="brutal-btn bg-white inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900 mb-6"
+          className="brutal-btn bg-white inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900 mb-4 sm:mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
           Kembali ke Katalog
@@ -135,7 +135,7 @@ export default function OrderDetailClient({
         <div className="brutal-card rounded-2xl bg-white overflow-hidden">
           {/* Status Banner */}
           <div
-            className={`px-6 py-5 border-b-2 border-zinc-900 flex flex-wrap items-center justify-between gap-3 ${
+            className={`px-4 sm:px-6 py-4 sm:py-5 border-b-2 border-zinc-900 flex flex-wrap items-center justify-between gap-3 ${
               order.status === "paid" ? "bg-[#A7F3D0]" : "bg-[#FAAE2B]"
             }`}
           >
@@ -164,9 +164,9 @@ export default function OrderDetailClient({
             </span>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
             {/* Order Summary */}
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-[#f6f1e7] border-2 border-zinc-900 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 p-4 rounded-xl bg-[#f6f1e7] border-2 border-zinc-900 text-xs">
               <div>
                 <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 block">
                   Produk
@@ -176,7 +176,7 @@ export default function OrderDetailClient({
                 </span>
                 <span className="text-zinc-700 block">{order.duration}</span>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 block">
                   Total Bayar (Tepat)
                 </span>
@@ -199,14 +199,14 @@ export default function OrderDetailClient({
                   Pembeli
                 </span>
                 <span className="text-zinc-900 font-bold">{order.customerName}</span>
-                <span className="text-zinc-700 block">{order.customerEmail}</span>
+                <span className="text-zinc-700 block break-all">{order.customerEmail}</span>
               </div>
-              <div className="pt-3 border-t-2 border-dashed border-zinc-400 text-right">
+              <div className="pt-3 border-t-2 border-dashed border-zinc-400 sm:text-right">
                 <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 block">
                   Metode Pembayaran
                 </span>
                 <span className="text-zinc-900 font-bold">
-                  {order.paymentMethod} (GoPay Merchant)
+                  QRIS (All-Payment)
                 </span>
                 <span className="text-zinc-700 block">{order.customerWhatsapp}</span>
               </div>

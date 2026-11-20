@@ -820,12 +820,12 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                     Kelola Kategori Produk ({categories.length})
                   </h2>
                 </div>
-                <form onSubmit={handleAddCategory} className="flex gap-2">
+                <form onSubmit={handleAddCategory} className="flex w-full sm:w-auto gap-2">
                   <input
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     placeholder="Kategori baru (VPN, Gaming, Cloud)"
-                    className="w-56 sm:w-64 px-3 py-1.5 rounded-xl brutal-input text-xs font-medium"
+                    className="flex-1 sm:w-64 min-w-0 px-3 py-1.5 rounded-xl brutal-input text-xs font-medium"
                   />
                   <button
                     type="submit"

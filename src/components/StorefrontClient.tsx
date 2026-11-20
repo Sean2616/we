@@ -31,13 +31,7 @@ interface StorefrontClientProps {
   whatsappAdmin: string;
 }
 
-const PAYMENT_METHODS: Array<{ id: PaymentMethod; label: string; desc: string }> = [
-  { id: "QRIS", label: "QRIS (GoPay / All E-Wallet & Bank)", desc: "Nominal otomatis & verifikasi cepat" },
-  { id: "DANA", label: "DANA (via QRIS)", desc: "Scan QRIS di aplikasi DANA" },
-  { id: "OVO", label: "OVO (via QRIS)", desc: "Scan QRIS di aplikasi OVO" },
-  { id: "GoPay", label: "GoPay (via QRIS)", desc: "Scan QRIS di aplikasi GoPay" },
-  { id: "BCA", label: "BCA / Bank (via QRIS)", desc: "Scan QRIS di m-Banking" },
-];
+const PAYMENT_LABEL = "QRIS (GoPay, DANA, OVO, ShopeePay & Semua Bank)";
 
 const PASTEL_HEADERS = [
   "#FCA5A5",
@@ -81,7 +75,7 @@ export default function StorefrontClient({
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("QRIS");
+  const paymentMethod: PaymentMethod = "QRIS";
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -191,27 +185,27 @@ export default function StorefrontClient({
     <div className="min-h-screen dot-bg text-zinc-900 flex flex-col">
       {/* Navbar */}
       <header className="sticky top-0 z-40 bg-[#f6f1e7]/95 backdrop-blur border-b-2 border-zinc-900">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FAAE2B] brutal-card-sm flex items-center justify-center">
-              <Zap className="w-5 h-5 text-zinc-900 fill-zinc-900" />
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#FAAE2B] brutal-card-sm flex items-center justify-center shrink-0">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-900 fill-zinc-900" />
             </div>
-            <div>
-              <span className="font-black text-base tracking-tight text-zinc-900 block leading-none">
+            <div className="min-w-0">
+              <span className="font-black text-sm sm:text-base tracking-tight text-zinc-900 block leading-none truncate">
                 {storeName}
               </span>
-              <span className="font-mono text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 border border-zinc-900 inline-block" />
+              <span className="font-mono text-[10px] sm:text-[11px] font-bold text-emerald-800 flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 border border-zinc-900 inline-block shrink-0" />
                 AUTO-ORDER 24/7
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <button
               onClick={refreshStock}
               disabled={refreshing}
-              className="brutal-btn bg-white inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-zinc-900 cursor-pointer"
+              className="brutal-btn bg-white inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold text-zinc-900 cursor-pointer"
               title="Refresh stok terbaru"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
@@ -224,10 +218,11 @@ export default function StorefrontClient({
                 setTrackerResults(null);
                 setTrackerError(null);
               }}
-              className="brutal-btn bg-white inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900 cursor-pointer"
+              className="brutal-btn bg-white inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold text-zinc-900 cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
-              Lacak Pesanan
+              <span>Lacak</span>
+              <span className="hidden sm:inline">Pesanan</span>
             </button>
 
             <a
@@ -242,54 +237,54 @@ export default function StorefrontClient({
         </div>
       </header>
 
-      <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 pt-8 pb-16 flex-1 space-y-8">
+      <main className="max-w-6xl w-full mx-auto px-3 sm:px-6 pt-5 sm:pt-8 pb-12 sm:pb-16 flex-1 space-y-6 sm:space-y-8">
         {/* Hero Card ala Saweria */}
-        <section className="brutal-card rounded-2xl bg-[#FAAE2B] p-6 sm:p-8 relative overflow-hidden">
+        <section className="brutal-card rounded-2xl bg-[#FAAE2B] p-4 sm:p-8 relative overflow-hidden">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-1.5 font-mono text-xs font-bold uppercase px-3 py-1 rounded-lg bg-white border-2 border-zinc-900 mb-4">
-              <Sparkles className="w-3.5 h-3.5" />
-              Stok Real-Time • Pengiriman Akun Otomatis
+            <div className="inline-flex items-center gap-1.5 font-mono text-[10px] sm:text-xs font-bold uppercase px-2.5 sm:px-3 py-1 rounded-lg bg-white border-2 border-zinc-900 mb-3 sm:mb-4">
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+              Stok Real-Time • Kirim Otomatis
             </div>
-            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-zinc-900 leading-tight mb-3">
+            <h1 className="text-2xl sm:text-5xl font-black tracking-tight text-zinc-900 leading-tight mb-2.5 sm:mb-3">
               Beli Aplikasi Premium Tanpa Antre, Akun Langsung Masuk!
             </h1>
-            <p className="text-zinc-900/85 text-sm sm:text-base font-medium leading-relaxed max-w-2xl mb-6">
-              Pilih aplikasi favoritmu, bayar lewat QRIS GoPay Merchant dengan nominal
-              otomatis, dan detail akun langsung tampil di layar dalam hitungan detik.
+            <p className="text-zinc-900/85 text-xs sm:text-base font-medium leading-relaxed max-w-2xl mb-5 sm:mb-6">
+              Pilih aplikasi favoritmu, scan QRIS dengan nominal otomatis, dan detail
+              akun langsung tampil di layar dalam hitungan detik.
             </p>
 
-            {/* Stats Pills */}
-            <div className="flex flex-wrap gap-3">
-              <div className="brutal-card-sm bg-white rounded-xl px-4 py-2.5">
-                <div className="font-mono text-[10px] font-bold uppercase text-zinc-500">
+            {/* Stats Pills - Mobile 3-col compact */}
+            <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2 sm:gap-3">
+              <div className="brutal-card-sm bg-white rounded-xl px-2.5 sm:px-4 py-2 sm:py-2.5">
+                <div className="font-mono text-[9px] sm:text-[10px] font-bold uppercase text-zinc-500">
                   Layanan
                 </div>
-                <div className="text-lg font-black text-zinc-900">
+                <div className="text-sm sm:text-lg font-black text-zinc-900">
                   {stats.totalProducts} Produk
                 </div>
               </div>
-              <div className="brutal-card-sm bg-[#A7F3D0] rounded-xl px-4 py-2.5">
-                <div className="font-mono text-[10px] font-bold uppercase text-zinc-700">
-                  Stok Siap Kirim
+              <div className="brutal-card-sm bg-[#A7F3D0] rounded-xl px-2.5 sm:px-4 py-2 sm:py-2.5">
+                <div className="font-mono text-[9px] sm:text-[10px] font-bold uppercase text-zinc-700">
+                  Stok Ready
                 </div>
-                <div className="text-lg font-black text-zinc-900">
+                <div className="text-sm sm:text-lg font-black text-zinc-900">
                   {stats.totalAvailableStock} Akun
                 </div>
               </div>
-              <div className="brutal-card-sm bg-[#8BD3DD] rounded-xl px-4 py-2.5">
-                <div className="font-mono text-[10px] font-bold uppercase text-zinc-700">
-                  Order Sukses
+              <div className="brutal-card-sm bg-[#8BD3DD] rounded-xl px-2.5 sm:px-4 py-2 sm:py-2.5">
+                <div className="font-mono text-[9px] sm:text-[10px] font-bold uppercase text-zinc-700">
+                  Terkirim
                 </div>
-                <div className="text-lg font-black text-zinc-900">
-                  {stats.totalCompletedOrders + 128}+ Order
+                <div className="text-sm sm:text-lg font-black text-zinc-900">
+                  {stats.totalCompletedOrders + 128}+
                 </div>
               </div>
             </div>
 
             {lastSyncedAt && (
-              <p className="font-mono text-[11px] font-semibold text-zinc-900/75 mt-4 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                Update terakhir: {new Date(lastSyncedAt).toLocaleString("id-ID")}
+              <p className="font-mono text-[10px] sm:text-[11px] font-semibold text-zinc-900/75 mt-3.5 flex items-center gap-1.5">
+                <Clock className="w-3 h-3 shrink-0" />
+                Update: {new Date(lastSyncedAt).toLocaleString("id-ID")}
               </p>
             )}
           </div>
@@ -509,21 +504,23 @@ export default function StorefrontClient({
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t-2 border-zinc-900 bg-white py-6 px-4 text-center text-xs font-mono font-semibold text-zinc-700 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+      {/* Footer (Admin Panel link sengaja disembunyikan) */}
+      <footer className="border-t-2 border-zinc-900 bg-white py-5 px-4 text-center text-xs font-mono font-semibold text-zinc-700 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
         <span>© {new Date().getFullYear()} {storeName} • Auto-Order 24/7</span>
         <a
-          href="/admin"
-          className="px-2.5 py-1 rounded-lg bg-[#f6f1e7] border border-zinc-900 text-zinc-900 hover:bg-[#FAAE2B] transition"
+          href={`https://wa.me/${whatsappAdmin}`}
+          target="_blank"
+          rel="noreferrer"
+          className="px-3 py-1 rounded-lg bg-[#8BD3DD] border-2 border-zinc-900 text-zinc-900 font-bold"
         >
-          Admin Panel
+          Hubungi CS WhatsApp
         </a>
       </footer>
 
-      {/* Checkout Modal */}
+      {/* Checkout Modal (Mobile Bottom-Sheet Friendly) */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-[#f6f1e7] brutal-card overflow-hidden max-h-[92vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4">
+          <div className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-[#f6f1e7] brutal-card overflow-hidden max-h-[92vh] flex flex-col">
             <div className="px-5 py-4 bg-[#FAAE2B] border-b-2 border-zinc-900 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {selectedProduct.logoUrl && (
@@ -635,30 +632,23 @@ export default function StorefrontClient({
                 />
               </div>
 
-              {/* Payment Methods */}
+              {/* Payment Method - QRIS Only */}
               <div>
-                <label className="block font-mono text-[11px] font-bold text-zinc-800 mb-2">
+                <label className="block font-mono text-[11px] font-bold text-zinc-800 mb-1.5">
                   METODE PEMBAYARAN
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {PAYMENT_METHODS.map((pm) => {
-                    const active = paymentMethod === pm.id;
-                    return (
-                      <button
-                        key={pm.id}
-                        type="button"
-                        onClick={() => setPaymentMethod(pm.id)}
-                        className={`p-3 rounded-xl border-2 border-zinc-900 text-left transition cursor-pointer ${
-                          active
-                            ? "bg-[#8BD3DD] shadow-[2px_2px_0px_0px_#18181b]"
-                            : "bg-white hover:bg-zinc-50"
-                        }`}
-                      >
-                        <div className="text-xs font-black text-zinc-900">{pm.label}</div>
-                        <div className="text-[11px] text-zinc-700 mt-0.5">{pm.desc}</div>
-                      </button>
-                    );
-                  })}
+                <div className="p-3.5 rounded-xl border-2 border-zinc-900 bg-[#8BD3DD] shadow-[2px_2px_0px_0px_#18181b] flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-black text-zinc-900">
+                      {PAYMENT_LABEL}
+                    </div>
+                    <div className="text-[11px] text-zinc-800 mt-0.5">
+                      Scan QRIS dengan nominal otomatis & pengiriman akun instan
+                    </div>
+                  </div>
+                  <span className="font-mono text-[10px] font-black px-2 py-1 rounded-md bg-white border-2 border-zinc-900 shrink-0">
+                    OTOMATIS
+                  </span>
                 </div>
               </div>
 
