@@ -85,7 +85,9 @@ export async function notifyNewOrder(
     `🔢 Jumlah: ${order.quantity} akun`,
     `💳 Metode: <b>${escapeHtml(order.paymentMethod)}</b>`,
     `💰 Total Bayar: <b>${formatRupiah(payable)}</b>${
-      order.uniqueCode ? ` (Kode unik: +${order.uniqueCode})` : ""
+      order.uniqueCode
+        ? ` (Kode unik: ${order.uniqueCode > 0 ? `+${order.uniqueCode}` : order.uniqueCode})`
+        : ""
     }`,
     ``,
     `👤 Pembeli: ${escapeHtml(order.customerName)}`,

@@ -27,6 +27,19 @@ export async function POST(request: Request) {
       }
     }
 
+    const uniqueCodeMode =
+      body.uniqueCodeMode === "subtract" || body.uniqueCodeMode === "none"
+        ? body.uniqueCodeMode
+        : "add";
+    const uniqueCodeMin = Math.max(
+      0,
+      Math.min(999, Number(body.uniqueCodeMin ?? 1) || 0)
+    );
+    const uniqueCodeMax = Math.max(
+      uniqueCodeMin,
+      Math.min(999, Number(body.uniqueCodeMax ?? 99) || 0)
+    );
+
     const db = await readDatabase();
     db.settings = {
       qrisStaticString,
@@ -35,6 +48,9 @@ export async function POST(request: Request) {
       telegramBotToken: String(body.telegramBotToken || "").trim(),
       telegramChatId: String(body.telegramChatId || "").trim(),
       enableDemoConfirm: Boolean(body.enableDemoConfirm),
+      uniqueCodeMode,
+      uniqueCodeMin,
+      uniqueCodeMax,
     };
     db.lastSyncedAt = new Date().toISOString();
 

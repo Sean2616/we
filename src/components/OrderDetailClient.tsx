@@ -184,7 +184,9 @@ export default function OrderDetailClient({
                 </span>
                 <span className="text-zinc-400 block">
                   {order.quantity} × {formatRupiah(order.unitPrice)}
-                  {order.uniqueCode ? ` (+${order.uniqueCode} kode unik)` : ""}
+                  {order.uniqueCode
+                    ? ` (${order.uniqueCode > 0 ? `+${order.uniqueCode}` : order.uniqueCode} kode unik)`
+                    : ""}
                 </span>
               </div>
               <div className="pt-3 border-t border-zinc-800/80">

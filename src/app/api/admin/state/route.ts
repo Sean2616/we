@@ -43,6 +43,9 @@ export async function GET(request: Request) {
         db.settings?.enableDemoConfirm !== undefined
           ? db.settings.enableDemoConfirm
           : !(db.settings?.qrisStaticString || process.env.QRIS_STATIC_STRING),
+      uniqueCodeMode: db.settings?.uniqueCodeMode || "add",
+      uniqueCodeMin: db.settings?.uniqueCodeMin ?? 1,
+      uniqueCodeMax: db.settings?.uniqueCodeMax ?? 99,
     };
 
     return NextResponse.json({

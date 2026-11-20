@@ -67,6 +67,9 @@ export interface StoreSettings {
   telegramBotToken?: string;
   telegramChatId?: string;
   enableDemoConfirm?: boolean;
+  uniqueCodeMode?: "add" | "subtract" | "none";
+  uniqueCodeMin?: number;
+  uniqueCodeMax?: number;
 }
 
 export interface StoreDatabase {

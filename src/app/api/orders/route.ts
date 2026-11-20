@@ -17,7 +17,20 @@ function generateOrderId(): string {
   return `INV-${datePart}-${randomPart}`;
 }
 
-function generateUniqueCode(baseTotal: number, existingOrders: Order[]): number {
+function generateUniqueCodeAndPayable(
+  baseTotal: number,
+  existingOrders: Order[],
+  mode: "add" | "subtract" | "none",
+  minCode: number,
+  maxCode: number
+): { uniqueCode: number; payableAmount: number } {
+  if (mode === "none" || maxCode <= 0) {
+    return { uniqueCode: 0, payableAmount: baseTotal };
+  }
+
+  const safeMin = Math.max(1, Math.min(999, Math.round(minCode)));
+  const safeMax = Math.max(safeMin, Math.min(999, Math.round(maxCode)));
+
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   const usedTotals = new Set(
     existingOrders
@@ -28,13 +41,28 @@ function generateUniqueCode(baseTotal: number, existingOrders: Order[]): number 
       .map((o) => o.payableAmount ?? o.totalPrice)
   );
 
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const code = Math.floor(Math.random() * 899) + 101; // 101 - 999
-    if (!usedTotals.has(baseTotal + code)) {
-      return code;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const code =
+      Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
+    const candidate =
+      mode === "subtract" ? Math.max(100, baseTotal - code) : baseTotal + code;
+    if (!usedTotals.has(candidate)) {
+      return {
+        uniqueCode: mode === "subtract" ? -code : code,
+        payableAmount: candidate,
+      };
     }
   }
-  return Math.floor(Math.random() * 899) + 101;
+
+  const fallbackCode =
+    Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
+  return {
+    uniqueCode: mode === "subtract" ? -fallbackCode : fallbackCode,
+    payableAmount:
+      mode === "subtract"
+        ? Math.max(100, baseTotal - fallbackCode)
+        : baseTotal + fallbackCode,
+  };
 }
 
 export async function GET(request: Request) {
@@ -110,8 +138,16 @@ export async function POST(request: Request) {
     }
 
     const totalPrice = product.price * quantity;
-    const uniqueCode = generateUniqueCode(totalPrice, db.orders);
-    const payableAmount = totalPrice + uniqueCode;
+    const uniqueCodeMode = db.settings?.uniqueCodeMode || "add";
+    const uniqueCodeMin = db.settings?.uniqueCodeMin ?? 1;
+    const uniqueCodeMax = db.settings?.uniqueCodeMax ?? 99;
+    const { uniqueCode, payableAmount } = generateUniqueCodeAndPayable(
+      totalPrice,
+      db.orders,
+      uniqueCodeMode,
+      uniqueCodeMin,
+      uniqueCodeMax
+    );
 
     // Generate Dynamic QRIS jika string QRIS GoPay Merchant sudah diatur
     const staticQris = (

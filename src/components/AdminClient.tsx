@@ -85,6 +85,9 @@ export default function AdminClient({ storeName }: { storeName: string }) {
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [enableDemoConfirm, setEnableDemoConfirm] = useState(true);
+  const [uniqueCodeMode, setUniqueCodeMode] = useState<"add" | "subtract" | "none">("add");
+  const [uniqueCodeMin, setUniqueCodeMin] = useState("1");
+  const [uniqueCodeMax, setUniqueCodeMax] = useState("99");
   const [savingSettings, setSavingSettings] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
   const [simAmount, setSimAmount] = useState("");
@@ -173,6 +176,9 @@ export default function AdminClient({ storeName }: { storeName: string }) {
         setTelegramBotToken(s.telegramBotToken || "");
         setTelegramChatId(s.telegramChatId || "");
         setEnableDemoConfirm(Boolean(s.enableDemoConfirm));
+        setUniqueCodeMode(s.uniqueCodeMode || "add");
+        setUniqueCodeMin(String(s.uniqueCodeMin ?? 1));
+        setUniqueCodeMax(String(s.uniqueCodeMax ?? 99));
       }
 
       if (keepSelection && selectedId) {
@@ -433,6 +439,9 @@ export default function AdminClient({ storeName }: { storeName: string }) {
           telegramBotToken,
           telegramChatId,
           enableDemoConfirm,
+          uniqueCodeMode,
+          uniqueCodeMin: Number(uniqueCodeMin),
+          uniqueCodeMax: Number(uniqueCodeMax),
         }),
       });
       const data = await res.json();
@@ -1150,7 +1159,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                       {formatRupiah(order.payableAmount ?? order.totalPrice)}
                       {order.uniqueCode ? (
                         <div className="text-[10px] font-normal text-indigo-400">
-                          +{order.uniqueCode} kode unik
+                          {order.uniqueCode > 0 ? `+${order.uniqueCode}` : order.uniqueCode} kode unik
                         </div>
                       ) : null}
                     </td>
@@ -1254,6 +1263,67 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                   placeholder="gopay-webhook-secret-2026"
                   className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
+              </div>
+
+              {/* Custom Unique Code */}
+              <div className="space-y-2.5 p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800">
+                <div className="text-xs font-bold text-white">
+                  Pengaturan Kode Unik QRIS (Agar Tidak Memberatkan Pembeli)
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-zinc-400 mb-1">
+                      Mode Kode Unik
+                    </label>
+                    <select
+                      value={uniqueCodeMode}
+                      onChange={(e) =>
+                        setUniqueCodeMode(
+                          e.target.value as "add" | "subtract" | "none"
+                        )
+                      }
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="add">Tambah ke Harga (+Rp)</option>
+                      <option value="subtract">Potong Harga / Diskon (-Rp)</option>
+                      <option value="none">Tanpa Kode Unik (Rp 0)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-zinc-400 mb-1">
+                      Minimal (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      disabled={uniqueCodeMode === "none"}
+                      value={uniqueCodeMin}
+                      onChange={(e) => setUniqueCodeMin(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white disabled:opacity-40 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-zinc-400 mb-1">
+                      Maksimal (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      disabled={uniqueCodeMode === "none"}
+                      value={uniqueCodeMax}
+                      onChange={(e) => setUniqueCodeMax(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white disabled:opacity-40 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Tips: Pilih <strong>Potong Harga (-Rp)</strong> dengan rentang{" "}
+                  <code>1</code> – <code>99</code> agar pembeli tidak terbebani
+                  biaya tambahan, tapi nominal setiap invoice tetap unik untuk
+                  auto-confirm GoPay Merchant!
+                </p>
               </div>
 
               <hr className="border-zinc-800" />
