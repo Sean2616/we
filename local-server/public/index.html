@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local Stock Server — PremStore Auto Sync</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --panel: #111115;
+      --panel-2: #18181f;
+      --border: #27272f;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    .container { max-width: 1240px; margin: 0 auto; padding: 20px; }
+    header {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 14px; padding: 16px 20px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 16px; margin-bottom: 18px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px;
+    }
+    .brand h1 { font-size: 17px; font-weight: 700; }
+    .brand p { font-size: 12px; color: var(--muted); }
+    .sync-bar {
+      display: grid; grid-template-columns: 1.4fr 1fr auto auto auto;
+      gap: 10px; align-items: end; padding: 16px 20px;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; margin-bottom: 18px;
+    }
+    @media (max-width: 900px) {
+      .sync-bar { grid-template-columns: 1fr; }
+    }
+    label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+    input, select, textarea {
+      width: 100%; background: #0c0c10; border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px; padding: 9px 12px; font-size: 13px;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    button {
+      border: none; border-radius: 10px; padding: 9px 14px; font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: 0.15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-green { background: rgba(16,185,129,0.16); color: #34d399; border: 1px solid rgba(16,185,129,0.35); }
+    .btn-green:hover { background: rgba(16,185,129,0.26); }
+    .btn-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: #23232d; }
+    .btn-danger { background: rgba(239,68,68,0.14); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    .toast {
+      padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 16px;
+      display: none; align-items: center; justify-content: space-between;
+    }
+    .toast.show { display: flex; }
+    .toast.ok { background: rgba(16,185,129,0.14); border: 1px solid rgba(16,185,129,0.35); color: #6ee7b7; }
+    .toast.err { background: rgba(239,68,68,0.14); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5; }
+    .toast.warn { background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.35); color: #fcd34d; }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab {
+      padding: 8px 16px; border-radius: 10px; background: var(--panel);
+      border: 1px solid var(--border); color: var(--muted); font-size: 13px; font-weight: 600;
+    }
+    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .grid-main { display: grid; grid-template-columns: 330px 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 900px) { .grid-main { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; gap: 10px;
+    }
+    .card-title { font-size: 15px; font-weight: 700; }
+
+    .prod-item {
+      padding: 12px; border-radius: 12px; border: 1px solid var(--border);
+      background: #0c0c10; margin-bottom: 8px; cursor: pointer; transition: 0.15s;
+    }
+    .prod-item:hover { border-color: #3f3f4e; }
+    .prod-item.active { border-color: var(--accent); background: rgba(99,102,241,0.1); }
+    .prod-item-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .prod-name { font-weight: 700; font-size: 13px; }
+    .prod-meta { font-size: 11px; color: var(--muted); margin-top: 3px; display: flex; justify-content: space-between; }
+
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+    }
+    .badge-green { background: rgba(16,185,129,0.16); color: #34d399; }
+    .badge-red { background: rgba(239,68,68,0.16); color: #f87171; }
+    .badge-amber { background: rgba(245,158,11,0.16); color: #fbbf24; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; }
+
+    .toggle-wrap { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; font-size: 12px; color: var(--muted); }
+    .toggle-wrap input { width: auto; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">LS</div>
+        <div>
+          <h1>Local Stock Server — PremStore Auto</h1>
+          <p>Kelola stok akun aplikasi premium secara lokal & sinkronisasi 1-klik ke Vercel</p>
+        </div>
+      </div>
+      <div id="lastSyncText" style="font-size:12px; color:var(--muted);">Belum pernah sync</div>
+    </header>
+
+    <!-- Sync Configuration Bar -->
+    <section class="sync-bar">
+      <div>
+        <label>URL Website (Vercel / Local Dev)</label>
+        <input id="remoteUrl" placeholder="https://nama-project.vercel.app atau http://localhost:3000" />
+      </div>
+      <div>
+        <label>SYNC_API_KEY (Harus sama dengan .env Vercel)</label>
+        <input id="apiKey" type="password" placeholder="premstore-secret-sync-key-2026" />
+      </div>
+      <div class="toggle-wrap">
+        <input id="autoSync" type="checkbox" />
+        <span>Auto-Sync</span>
+      </div>
+      <button class="btn-secondary" onclick="saveConfig()">Simpan Config</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn-green" onclick="pushToVercel()">⬆ Push ke Vercel</button>
+        <button class="btn-primary" onclick="pullFromVercel()">⬇ Pull Order & Stok</button>
+      </div>
+    </section>
+
+    <div id="toast" class="toast"></div>
+
+    <div class="tabs">
+      <button id="tabStockBtn" class="tab active" onclick="switchTab('stock')">📦 Kelola Produk & Stok</button>
+      <button id="tabOrdersBtn" class="tab" onclick="switchTab('orders')">🧾 Riwayat Order (<span id="orderCount">0</span>)</button>
+    </div>
+
+    <!-- TAB 1: PRODUCTS & STOCK -->
+    <div id="tabStock" class="grid-main">
+      <!-- Left: Product List -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Daftar Produk (<span id="prodCount">0</span>)</div>
+          <button class="btn-primary btn-sm" onclick="openNewProduct()">+ Produk</button>
+        </div>
+        <div id="productList"></div>
+      </div>
+
+      <!-- Right: Selected Product & Stock Manager -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <!-- Product Editor -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title" id="editorTitle">Detail Produk</div>
+            <div style="display:flex; gap:8px;">
+              <button id="deleteProdBtn" class="btn-danger btn-sm" onclick="deleteSelectedProduct()">Hapus Produk</button>
+              <button class="btn-primary btn-sm" onclick="saveProduct()">Simpan Produk</button>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div>
+              <label>Nama Aplikasi / Produk</label>
+              <input id="pName" placeholder="Netflix Premium 4K" />
+            </div>
+            <div>
+              <label>Kategori</label>
+              <select id="pCategory">
+                <option>Streaming</option>
+                <option>Music</option>
+                <option>Design</option>
+                <option>AI & Productivity</option>
+                <option>Editing</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label>Durasi</label>
+              <input id="pDuration" placeholder="1 Bulan (1P1U)" />
+            </div>
+            <div>
+              <label>Harga Jual (Rp)</label>
+              <input id="pPrice" type="number" placeholder="35000" />
+            </div>
+            <div>
+              <label>Harga Coret / Asli (Opsional)</label>
+              <input id="pOriginalPrice" type="number" placeholder="54000" />
+            </div>
+            <div>
+              <label>Badge (Opsional)</label>
+              <input id="pBadge" placeholder="Terlaris / Instant" />
+            </div>
+            <div>
+              <label>Kode Ikon (2-3 huruf)</label>
+              <input id="pIcon" maxlength="3" placeholder="NF" />
+            </div>
+            <div>
+              <label>Warna Aksen (Hex)</label>
+              <input id="pAccent" placeholder="#E50914" />
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label>Deskripsi Singkat</label>
+            <input id="pDesc" placeholder="Akun legal bergaransi penuh..." />
+          </div>
+          <div>
+            <label>Fitur Unggulan (1 baris = 1 fitur)</label>
+            <textarea id="pFeatures" rows="3" placeholder="Resolusi Ultra HD 4K&#10;Garansi Full 30 Hari"></textarea>
+          </div>
+        </div>
+
+        <!-- Bulk Stock Adder + Stock List -->
+        <div id="stockSection" class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Stok Akun Siap Kirim</div>
+              <p style="font-size:12px; color:var(--muted);">Paste daftar akun (1 baris = 1 stok akun otomatis)</p>
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label>Tambah Stok Massal (Format bebas, misal: email | password | profile/PIN)</label>
+            <textarea id="bulkLines" rows="4" placeholder="akun1@mail.com | Pass123 | Profile 1 PIN 1234&#10;akun2@mail.com | Pass456 | Profile 2 PIN 5678"></textarea>
+          </div>
+          <div style="display:flex; gap:10px; align-items:end; margin-bottom:18px;">
+            <div style="flex:1;">
+              <label>Catatan untuk Pembeli (Opsional)</label>
+              <input id="bulkNote" placeholder="Jangan ubah email & password utama" />
+            </div>
+            <button class="btn-green" onclick="addBulkStock()">+ Tambah Stok</button>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Kredensial Akun</th>
+                  <th>Catatan / Order ID</th>
+                  <th style="width:70px;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="stockTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: ORDERS -->
+    <div id="tabOrders" class="card hidden">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Riwayat Pesanan dari Vercel</div>
+          <p style="font-size:12px; color:var(--muted);">Klik "Pull Order & Stok" di atas untuk mengambil transaksi terbaru dari website Vercel</p>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Pembeli</th>
+              <th>Produk</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Akun Terkirim</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let state = { config: {}, db: { products: [], orders: [] } };
+    let selectedProductId = null;
+
+    function showToast(msg, type = "ok") {
+      const el = document.getElementById("toast");
+      el.className = `toast show ${type}`;
+      el.innerHTML = `<span>${msg}</span><button class="btn-sm btn-secondary" onclick="this.parentElement.classList.remove('show')">Tutup</button>`;
+    }
+
+    function formatRp(n) {
+      return "Rp " + Number(n || 0).toLocaleString("id-ID");
+    }
+
+    async function loadState() {
+      const res = await fetch("/local-api/state");
+      state = await res.json();
+      document.getElementById("remoteUrl").value = state.config.remoteUrl || "";
+      document.getElementById("apiKey").value = state.config.apiKey || "";
+      document.getElementById("autoSync").checked = Boolean(state.config.autoSync);
+
+      if (!selectedProductId && state.db.products.length > 0) {
+        selectedProductId = state.db.products[0].id;
+      }
+      render();
+    }
+
+    function switchTab(tab) {
+      document.getElementById("tabStock").classList.toggle("hidden", tab !== "stock");
+      document.getElementById("tabOrders").classList.toggle("hidden", tab !== "orders");
+      document.getElementById("tabStockBtn").classList.toggle("active", tab === "stock");
+      document.getElementById("tabOrdersBtn").classList.toggle("active", tab === "orders");
+    }
+
+    function render() {
+      const products = state.db.products || [];
+      const orders = state.db.orders || [];
+      document.getElementById("prodCount").textContent = products.length;
+      document.getElementById("orderCount").textContent = orders.length;
+      document.getElementById("lastSyncText").textContent = state.db.lastSyncedAt
+        ? "Sync terakhir: " + new Date(state.db.lastSyncedAt).toLocaleString("id-ID")
+        : "Belum pernah sync";
+
+      // Product list
+      const listEl = document.getElementById("productList");
+      listEl.innerHTML = products.map((p) => {
+        const avail = (p.stock || []).filter((s) => s.status === "available").length;
+        const badgeClass = avail > 0 ? "badge-green" : "badge-red";
+        return `
+          <div class="prod-item ${p.id === selectedProductId ? "active" : ""}" onclick="selectProduct('${p.id}')">
+            <div class="prod-item-top">
+              <span class="prod-name">${p.name}</span>
+              <span class="badge ${badgeClass}">Stok: ${avail}</span>
+            </div>
+            <div class="prod-meta">
+              <span>${p.category} • ${p.duration}</span>
+              <strong style="color:#fff">${formatRp(p.price)}</strong>
+            </div>
+          </div>
+        `;
+      }).join("") || '<p style="font-size:12px;color:var(--muted);">Belum ada produk.</p>';
+
+      // Editor
+      const selected = products.find((p) => p.id === selectedProductId);
+      const stockSection = document.getElementById("stockSection");
+      const deleteBtn = document.getElementById("deleteProdBtn");
+
+      if (selected) {
+        document.getElementById("editorTitle").textContent = "Edit Produk: " + selected.name;
+        document.getElementById("pName").value = selected.name || "";
+        document.getElementById("pCategory").value = selected.category || "Streaming";
+        document.getElementById("pDuration").value = selected.duration || "";
+        document.getElementById("pPrice").value = selected.price || 0;
+        document.getElementById("pOriginalPrice").value = selected.originalPrice || "";
+        document.getElementById("pBadge").value = selected.badge || "";
+        document.getElementById("pIcon").value = selected.icon || "";
+        document.getElementById("pAccent").value = selected.accentColor || "#6366F1";
+        document.getElementById("pDesc").value = selected.description || "";
+        document.getElementById("pFeatures").value = (selected.features || []).join("\n");
+        stockSection.classList.remove("hidden");
+        deleteBtn.classList.remove("hidden");
+
+        // Stock table
+        const tbody = document.getElementById("stockTableBody");
+        const stocks = [...(selected.stock || [])].sort((a, b) => (a.status === "available" ? -1 : 1));
+        tbody.innerHTML = stocks.map((s) => `
+          <tr>
+            <td>
+              <span class="badge ${s.status === "available" ? "badge-green" : "badge-amber"}">
+                ${s.status === "available" ? "READY" : "TERJUAL"}
+              </span>
+            </td>
+            <td class="mono">${escapeHtml(s.credentials)}</td>
+            <td style="color:var(--muted); font-size:12px;">
+              ${s.orderId ? `<div style="color:#a5b4fc;font-weight:600;">${s.orderId}</div>` : ""}
+              ${escapeHtml(s.note || "-")}
+            </td>
+            <td>
+              <button class="btn-danger btn-sm" onclick="deleteStock('${selected.id}', '${s.id}')">Hapus</button>
+            </td>
+          </tr>
+        `).join("") || '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px;">Stok kosong. Tambahkan akun di form atas.</td></tr>';
+      } else {
+        document.getElementById("editorTitle").textContent = "Tambah Produk Baru";
+        stockSection.classList.add("hidden");
+        deleteBtn.classList.add("hidden");
+      }
+
+      // Orders table
+      const ordersBody = document.getElementById("ordersTableBody");
+      ordersBody.innerHTML = orders.map((o) => `
+        <tr>
+          <td class="mono" style="color:#a5b4fc;font-weight:700;">${o.id}</td>
+          <td>
+            <div style="font-weight:600;">${escapeHtml(o.customerName)}</div>
+            <div style="font-size:11px;color:var(--muted);">${escapeHtml(o.customerEmail)} • ${escapeHtml(o.customerWhatsapp)}</div>
+          </td>
+          <td>${escapeHtml(o.productName)} × ${o.quantity}</td>
+          <td style="font-weight:700;">${formatRp(o.totalPrice)}</td>
+          <td>
+            <span class="badge ${o.status === "paid" ? "badge-green" : "badge-amber"}">
+              ${o.status === "paid" ? "LUNAS" : "PENDING"}
+            </span>
+          </td>
+          <td class="mono" style="font-size:11px;">
+            ${(o.deliveredItems || []).map((i) => escapeHtml(i.credentials)).join("<br/>") || "-"}
+          </td>
+        </tr>
+      `).join("") || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Belum ada order yang ditarik dari server.</td></tr>';
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (m) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[m]));
+    }
+
+    function selectProduct(id) {
+      selectedProductId = id;
+      render();
+    }
+
+    function openNewProduct() {
+      selectedProductId = null;
+      ["pName", "pDuration", "pPrice", "pOriginalPrice", "pBadge", "pIcon", "pDesc", "pFeatures"].forEach((id) => {
+        document.getElementById(id).value = "";
+      });
+      document.getElementById("pAccent").value = "#6366F1";
+      render();
+    }
+
+    async function saveConfig() {
+      const payload = {
+        remoteUrl: document.getElementById("remoteUrl").value,
+        apiKey: document.getElementById("apiKey").value,
+        autoSync: document.getElementById("autoSync").checked,
+      };
+      const res = await fetch("/local-api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        state.config = data.config;
+        showToast("Konfigurasi target server berhasil disimpan!", "ok");
+      } else {
+        showToast(data.error || "Gagal simpan konfigurasi", "err");
+      }
+    }
+
+    async function saveProduct() {
+      const payload = {
+        id: selectedProductId,
+        name: document.getElementById("pName").value,
+        category: document.getElementById("pCategory").value,
+        duration: document.getElementById("pDuration").value,
+        price: Number(document.getElementById("pPrice").value),
+        originalPrice: document.getElementById("pOriginalPrice").value ? Number(document.getElementById("pOriginalPrice").value) : null,
+        badge: document.getElementById("pBadge").value,
+        icon: document.getElementById("pIcon").value,
+        accentColor: document.getElementById("pAccent").value,
+        description: document.getElementById("pDesc").value,
+        features: document.getElementById("pFeatures").value,
+      };
+      const res = await fetch("/local-api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) return showToast(data.error || "Gagal menyimpan produk", "err");
+
+      state.db = data.db;
+      if (!selectedProductId && state.db.products.length > 0) {
+        selectedProductId = state.db.products[state.db.products.length - 1].id;
+      }
+      render();
+      handleSyncToast("Produk berhasil disimpan.", data.syncResult);
+    }
+
+    async function deleteSelectedProduct() {
+      if (!selectedProductId) return;
+      if (!confirm("Hapus produk ini beserta seluruh stoknya?")) return;
+      const res = await fetch(`/local-api/products/${encodeURIComponent(selectedProductId)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) return showToast(data.error || "Gagal menghapus produk", "err");
+      state.db = data.db;
+      selectedProductId = state.db.products[0]?.id || null;
+      render();
+      handleSyncToast("Produk dihapus.", data.syncResult);
+    }
+
+    async function addBulkStock() {
+      if (!selectedProductId) return;
+      const lines = document.getElementById("bulkLines").value;
+      const note = document.getElementById("bulkNote").value;
+      const res = await fetch(`/local-api/products/${encodeURIComponent(selectedProductId)}/stock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lines, note }),
+      });
+      const data = await res.json();
+      if (!res.ok) return showToast(data.error || "Gagal menambah stok", "err");
+
+      document.getElementById("bulkLines").value = "";
+      state.db = data.db;
+      render();
+      handleSyncToast(`${data.addedCount} stok akun berhasil ditambahkan.`, data.syncResult);
+    }
+
+    async function deleteStock(prodId, stockId) {
+      const res = await fetch(`/local-api/products/${encodeURIComponent(prodId)}/stock/${encodeURIComponent(stockId)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) return showToast(data.error || "Gagal menghapus stok", "err");
+      state.db = data.db;
+      render();
+      handleSyncToast("Stok dihapus.", data.syncResult);
+    }
+
+    function handleSyncToast(baseMsg, syncResult) {
+      if (!syncResult) return showToast(baseMsg + " (Auto-Sync nonaktif)", "ok");
+      if (syncResult.ok === false) {
+        return showToast(baseMsg + " Tetapi Auto-Sync gagal: " + syncResult.error, "warn");
+      }
+      if (syncResult.warning) {
+        return showToast(baseMsg + " Sync sukses! Catatan: " + syncResult.warning, "warn");
+      }
+      return showToast(baseMsg + " " + (syncResult.message || "Tersinkronisasi ke server!"), "ok");
+    }
+
+    async function pushToVercel() {
+      await saveConfig();
+      const res = await fetch("/local-api/sync/push", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) return showToast("Gagal Push ke Vercel: " + (data.error || res.status), "err");
+      state.db = data.db;
+      render();
+      if (data.result?.warning) {
+        showToast(data.result.message + " — " + data.result.warning, "warn");
+      } else {
+        showToast(data.result?.message || "Berhasil push stok ke Vercel!", "ok");
+      }
+    }
+
+    async function pullFromVercel() {
+      await saveConfig();
+      const res = await fetch("/local-api/sync/pull", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) return showToast("Gagal Pull dari Vercel: " + (data.error || res.status), "err");
+      state.db = data.db;
+      render();
+      showToast(`Pull berhasil! ${state.db.products.length} produk & ${state.db.orders.length} order disinkronkan.`, "ok");
+    }
+
+    loadState();
+  </script>
+</body>
+</html>
