@@ -20,6 +20,7 @@ import { Order, PaymentMethod, ProductCategory, PublicProduct } from "@/lib/type
 
 interface StorefrontClientProps {
   initialProducts: PublicProduct[];
+  initialCategories: string[];
   initialStats: {
     totalProducts: number;
     totalAvailableStock: number;
@@ -29,16 +30,6 @@ interface StorefrontClientProps {
   storeName: string;
   whatsappAdmin: string;
 }
-
-const CATEGORIES: Array<"Semua" | ProductCategory> = [
-  "Semua",
-  "Streaming",
-  "Music",
-  "Design",
-  "AI & Productivity",
-  "Editing",
-  "Other",
-];
 
 const PAYMENT_METHODS: Array<{ id: PaymentMethod; label: string; desc: string }> = [
   { id: "QRIS", label: "QRIS (Semua E-Wallet & Bank)", desc: "Proses otomatis 1 detik" },
@@ -58,6 +49,7 @@ function formatRupiah(value: number) {
 
 export default function StorefrontClient({
   initialProducts,
+  initialCategories,
   initialStats,
   initialLastSyncedAt,
   storeName,
@@ -66,6 +58,7 @@ export default function StorefrontClient({
   const router = useRouter();
 
   const [products, setProducts] = useState<PublicProduct[]>(initialProducts);
+  const [categories, setCategories] = useState<string[]>(initialCategories);
   const [stats, setStats] = useState(initialStats);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(initialLastSyncedAt);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,6 +104,7 @@ export default function StorefrontClient({
       if (res.ok) {
         const data = await res.json();
         setProducts(data.products);
+        if (Array.isArray(data.categories)) setCategories(data.categories);
         setStats(data.stats);
         setLastSyncedAt(data.lastSyncedAt);
       }
@@ -301,7 +295,7 @@ export default function StorefrontClient({
         {/* Search & Category Filter */}
         <section className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {CATEGORIES.map((cat) => {
+            {["Semua", ...categories].map((cat) => {
               const active = selectedCategory === cat;
               return (
                 <button

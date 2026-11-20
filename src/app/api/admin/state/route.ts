@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getStorageMode, readDatabase, verifyAdminRequest } from "@/lib/storage";
+import {
+  getResolvedCategories,
+  getStorageMode,
+  readDatabase,
+  verifyAdminRequest,
+} from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +50,7 @@ export async function GET(request: Request) {
       storageMode: getStorageMode(),
       products: db.products,
       orders: db.orders,
+      categories: getResolvedCategories(db),
       settings: effectiveSettings,
       stats: {
         totalProducts: db.products.length,

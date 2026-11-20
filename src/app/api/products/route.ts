@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getStorageMode, readDatabase, toPublicProduct } from "@/lib/storage";
+import {
+  getResolvedCategories,
+  getStorageMode,
+  readDatabase,
+  toPublicProduct,
+} from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +17,7 @@ export async function GET() {
 
     return NextResponse.json({
       products,
+      categories: getResolvedCategories(db),
       stats: {
         totalProducts: products.length,
         totalAvailableStock,

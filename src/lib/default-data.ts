@@ -2,8 +2,18 @@ import { StoreDatabase } from "./types";
 
 const now = new Date().toISOString();
 
+export const DEFAULT_CATEGORIES: string[] = [
+  "Streaming",
+  "Music",
+  "Design",
+  "AI & Productivity",
+  "Editing",
+  "Other",
+];
+
 export const DEFAULT_DATABASE: StoreDatabase = {
   lastSyncedAt: null,
+  categories: [...DEFAULT_CATEGORIES],
   orders: [],
   products: [
     {

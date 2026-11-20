@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { DEFAULT_DATABASE } from "./default-data";
+import { DEFAULT_CATEGORIES, DEFAULT_DATABASE } from "./default-data";
 import { Product, PublicProduct, StoreDatabase } from "./types";
 
 const REDIS_KEY = "premstore:database:v1";
@@ -234,4 +234,20 @@ export function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random()
     .toString(36)
     .slice(2, 6)}`;
+}
+
+export function getResolvedCategories(db: StoreDatabase): string[] {
+  const base =
+    Array.isArray(db.categories) && db.categories.length > 0
+      ? [...db.categories]
+      : [...DEFAULT_CATEGORIES];
+  const seen = new Set(base.map((c) => c.toLowerCase()));
+  for (const prod of db.products) {
+    const cat = (prod.category || "").trim();
+    if (cat && !seen.has(cat.toLowerCase())) {
+      base.push(cat);
+      seen.add(cat.toLowerCase());
+    }
+  }
+  return base;
 }

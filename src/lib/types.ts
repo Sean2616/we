@@ -1,10 +1,4 @@
-export type ProductCategory =
-  | "Streaming"
-  | "Music"
-  | "Design"
-  | "AI & Productivity"
-  | "Editing"
-  | "Other";
+export type ProductCategory = string;
 
 export interface StockItem {
   id: string;
@@ -78,6 +72,7 @@ export interface StoreSettings {
 export interface StoreDatabase {
   products: Product[];
   orders: Order[];
+  categories?: string[];
   settings?: StoreSettings;
   lastSyncedAt: string | null;
 }

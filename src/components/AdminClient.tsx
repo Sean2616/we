@@ -22,12 +22,14 @@ import {
   Save,
   Send,
   Settings,
+  Tag,
   Trash2,
+  X,
   Zap,
 } from "lucide-react";
 import { Order, Product, ProductCategory, StoreSettings } from "@/lib/types";
 
-const CATEGORIES: ProductCategory[] = [
+const FALLBACK_CATEGORIES: ProductCategory[] = [
   "Streaming",
   "Music",
   "Design",
@@ -61,6 +63,9 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<string[]>(FALLBACK_CATEGORIES);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
   const [stats, setStats] = useState<AdminStats>({
     totalProducts: 0,
     totalAvailableStock: 0,
@@ -155,6 +160,9 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
       setProducts(data.products || []);
       setOrders(data.orders || []);
+      if (Array.isArray(data.categories) && data.categories.length > 0) {
+        setCategories(data.categories);
+      }
       setStats(data.stats);
       setStorageMode(data.storageMode);
 
@@ -348,6 +356,51 @@ export default function AdminClient({ storeName }: { storeName: string }) {
     }
     await fetchAdminState(adminKey, true);
     showToast("Stok dihapus.");
+  }
+
+  async function handleAddCategory(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setAddingCategory(true);
+    try {
+      const res = await fetch("/api/admin/categories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Gagal menambah kategori", "err");
+        return;
+      }
+      setCategories(data.categories || []);
+      setNewCategoryName("");
+      showToast(data.message || `Kategori "${name}" ditambahkan!`);
+    } finally {
+      setAddingCategory(false);
+    }
+  }
+
+  async function handleDeleteCategory(name: string) {
+    if (!confirm(`Hapus kategori "${name}" dari daftar filter?`)) return;
+    const res = await fetch(
+      `/api/admin/categories?name=${encodeURIComponent(name)}`,
+      {
+        method: "DELETE",
+        headers: { "x-admin-key": adminKey },
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || "Gagal menghapus kategori", "err");
+      return;
+    }
+    setCategories(data.categories || []);
+    showToast(data.message || `Kategori "${name}" dihapus.`);
   }
 
   async function handleManualConfirmOrder(orderId: string) {
@@ -668,6 +721,53 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
         {/* TAB 1: PRODUCTS & STOCK */}
         {activeTab === "stock" && (
+          <div className="space-y-5">
+            {/* Dynamic Category Manager */}
+            <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-indigo-400" />
+                  <h2 className="font-bold text-sm text-white">
+                    Kelola Kategori Produk ({categories.length})
+                  </h2>
+                </div>
+                <form onSubmit={handleAddCategory} className="flex gap-2">
+                  <input
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Kategori baru (misal: VPN, Gaming, Cloud)"
+                    className="w-56 sm:w-64 px-3 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={addingCategory}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60 whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Tambah
+                  </button>
+                </form>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((cat) => (
+                  <span
+                    key={cat}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-200"
+                  >
+                    {cat}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCategory(cat)}
+                      className="text-zinc-500 hover:text-rose-400 cursor-pointer"
+                      title={`Hapus kategori ${cat}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* Left Sidebar: Product List */}
             <div className="lg:col-span-4 rounded-3xl bg-zinc-900/80 border border-zinc-800 p-4">
@@ -785,7 +885,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                       }
                       className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
                     >
-                      {CATEGORIES.map((c) => (
+                      {categories.map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>
@@ -998,6 +1098,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                 </div>
               )}
             </div>
+          </div>
           </div>
         )}
 
