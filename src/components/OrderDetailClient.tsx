@@ -44,7 +44,6 @@ export default function OrderDetailClient({
 
   const payableAmount = order.payableAmount ?? order.totalPrice;
 
-  // Auto-polling status setiap 4 detik saat masih pending (agar langsung lunas otomatis saat webhook GoPay Merchant masuk)
   useEffect(() => {
     if (order.status !== "pending") return;
 
@@ -60,7 +59,7 @@ export default function OrderDetailClient({
           }
         }
       } catch {
-        // abaikan error jaringan sementara saat polling
+        // ignore transient polling error
       }
     }, 4000);
 
@@ -123,32 +122,36 @@ export default function OrderDetailClient({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 bg-grid-pattern py-10 px-4">
+    <div className="min-h-screen dot-bg text-zinc-900 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-xs font-medium text-zinc-400 hover:text-white mb-6 transition"
+          className="brutal-btn bg-white inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900 mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
           Kembali ke Katalog
         </Link>
 
-        <div className="rounded-3xl bg-zinc-900/85 border border-zinc-800 shadow-2xl overflow-hidden">
+        <div className="brutal-card rounded-2xl bg-white overflow-hidden">
           {/* Status Banner */}
           <div
-            className={`px-6 py-5 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-3 ${
-              order.status === "paid" ? "bg-emerald-500/10" : "bg-amber-500/10"
+            className={`px-6 py-5 border-b-2 border-zinc-900 flex flex-wrap items-center justify-between gap-3 ${
+              order.status === "paid" ? "bg-[#A7F3D0]" : "bg-[#FAAE2B]"
             }`}
           >
             <div className="flex items-center gap-3">
-              {order.status === "paid" ? (
-                <CheckCircle2 className="w-7 h-7 text-emerald-400" />
-              ) : (
-                <Clock className="w-7 h-7 text-amber-400" />
-              )}
+              <div className="w-10 h-10 rounded-xl bg-white border-2 border-zinc-900 flex items-center justify-center">
+                {order.status === "paid" ? (
+                  <CheckCircle2 className="w-6 h-6 text-emerald-700" />
+                ) : (
+                  <Clock className="w-6 h-6 text-zinc-900" />
+                )}
+              </div>
               <div>
-                <div className="font-mono text-xs text-zinc-400">{order.id}</div>
-                <h1 className="font-bold text-lg text-white">
+                <div className="font-mono text-xs font-bold text-zinc-800">
+                  {order.id}
+                </div>
+                <h1 className="font-black text-lg text-zinc-900">
                   {order.status === "paid"
                     ? "Pembayaran Lunas • Akun Terkirim"
                     : "Menunggu Pembayaran QRIS"}
@@ -156,74 +159,78 @@ export default function OrderDetailClient({
               </div>
             </div>
 
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-bold ${
-                order.status === "paid"
-                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                  : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-              }`}
-            >
+            <span className="font-mono px-3 py-1 rounded-lg text-xs font-black bg-white border-2 border-zinc-900 text-zinc-900">
               {order.status === "paid" ? "SELESAI" : "PENDING"}
             </span>
           </div>
 
           <div className="p-6 space-y-6">
             {/* Order Summary */}
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-zinc-950 border border-zinc-800 text-xs">
+            <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-[#f6f1e7] border-2 border-zinc-900 text-xs">
               <div>
-                <span className="text-zinc-500 block">Produk</span>
-                <span className="font-semibold text-white text-sm">
+                <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 block">
+                  Produk
+                </span>
+                <span className="font-black text-zinc-900 text-sm">
                   {order.productName}
                 </span>
-                <span className="text-zinc-400 block">{order.duration}</span>
+                <span className="text-zinc-700 block">{order.duration}</span>
               </div>
               <div className="text-right">
-                <span className="text-zinc-500 block">Total Bayar (Tepat)</span>
-                <span className="font-extrabold text-indigo-400 text-base">
+                <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 block">
+                  Total Bayar (Tepat)
+                </span>
+                <span className="font-black text-zinc-900 text-base">
                   {formatRupiah(payableAmount)}
                 </span>
-                <span className="text-zinc-400 block">
+                <span className="font-mono text-zinc-700 block">
                   {order.quantity} × {formatRupiah(order.unitPrice)}
                   {order.uniqueCode
-                    ? ` (${order.uniqueCode > 0 ? `+${order.uniqueCode}` : order.uniqueCode} kode unik)`
+                    ? ` (${
+                        order.uniqueCode > 0
+                          ? `+${order.uniqueCode}`
+                          : order.uniqueCode
+                      } kode unik)`
                     : ""}
                 </span>
               </div>
-              <div className="pt-3 border-t border-zinc-800/80">
-                <span className="text-zinc-500 block">Pembeli</span>
-                <span className="text-zinc-200 font-medium">
-                  {order.customerName}
+              <div className="pt-3 border-t-2 border-dashed border-zinc-400">
+                <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 block">
+                  Pembeli
                 </span>
-                <span className="text-zinc-400 block">{order.customerEmail}</span>
+                <span className="text-zinc-900 font-bold">{order.customerName}</span>
+                <span className="text-zinc-700 block">{order.customerEmail}</span>
               </div>
-              <div className="pt-3 border-t border-zinc-800/80 text-right">
-                <span className="text-zinc-500 block">Metode Pembayaran</span>
-                <span className="text-zinc-200 font-semibold">
+              <div className="pt-3 border-t-2 border-dashed border-zinc-400 text-right">
+                <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 block">
+                  Metode Pembayaran
+                </span>
+                <span className="text-zinc-900 font-bold">
                   {order.paymentMethod} (GoPay Merchant)
                 </span>
-                <span className="text-zinc-400 block">{order.customerWhatsapp}</span>
+                <span className="text-zinc-700 block">{order.customerWhatsapp}</span>
               </div>
             </div>
 
             {error && (
-              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+              <div className="p-3.5 rounded-xl bg-[#FCA5A5] border-2 border-zinc-900 text-zinc-900 text-xs font-bold">
                 {error}
               </div>
             )}
 
             {/* Pending Payment Section */}
             {order.status === "pending" && (
-              <div className="rounded-2xl bg-zinc-950 border border-zinc-800 p-6 text-center space-y-4">
+              <div className="rounded-2xl bg-[#f6f1e7] border-2 border-zinc-900 p-6 text-center space-y-4">
                 {qrDataUrl ? (
                   <div className="space-y-3">
-                    <div className="inline-block rounded-2xl bg-white p-3.5 shadow-xl">
+                    <div className="inline-block rounded-2xl bg-white p-3.5 brutal-card-sm">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={qrDataUrl}
                         alt="QRIS GoPay Merchant Dinamis"
                         className="w-56 h-56 mx-auto"
                       />
-                      <div className="text-[11px] font-extrabold text-zinc-900 tracking-wider mt-1.5">
+                      <div className="font-mono text-[11px] font-black text-zinc-900 tracking-wider mt-1.5">
                         QRIS GOPAY MERCHANT • NOMINAL OTOMATIS
                       </div>
                     </div>
@@ -232,7 +239,7 @@ export default function OrderDetailClient({
                       <a
                         href={qrDataUrl}
                         download={`QRIS-${order.id}.png`}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-200 transition"
+                        className="brutal-btn bg-white inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-900"
                       >
                         <Download className="w-3.5 h-3.5" />
                         Download Gambar QRIS
@@ -240,35 +247,35 @@ export default function OrderDetailClient({
                     </div>
                   </div>
                 ) : (
-                  <div className="w-44 h-44 mx-auto rounded-2xl bg-white p-3 flex flex-col items-center justify-center text-zinc-900 shadow-lg">
+                  <div className="w-44 h-44 mx-auto rounded-2xl bg-white p-3 brutal-card-sm flex flex-col items-center justify-center text-zinc-900">
                     <QrCode className="w-28 h-28 text-zinc-900" />
-                    <span className="text-[10px] font-bold tracking-widest mt-1">
+                    <span className="font-mono text-[10px] font-black mt-1">
                       QRIS BELUM DIATUR
                     </span>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold text-white">
+                  <p className="text-sm font-black text-zinc-900">
                     Scan QRIS & Bayar Tepat Sebesar:
                   </p>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30">
-                    <span className="text-xl font-extrabold text-indigo-300 font-mono">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FDE68A] border-2 border-zinc-900">
+                    <span className="text-xl font-black text-zinc-900 font-mono">
                       {formatRupiah(payableAmount)}
                     </span>
                     <button
                       onClick={copyPayableAmount}
-                      className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 cursor-pointer"
+                      className="p-1.5 rounded-lg bg-white border border-zinc-900 text-zinc-900 cursor-pointer"
                       title="Salin nominal tepat"
                     >
                       {copiedAmount ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <Check className="w-3.5 h-3.5 text-emerald-700" />
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
                       )}
                     </button>
                   </div>
-                  <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                  <p className="text-xs text-zinc-700 max-w-md mx-auto">
                     {qrDataUrl
                       ? "Nominal sudah otomatis terisi saat QRIS di-scan (GoPay, DANA, OVO, ShopeePay, BCA, BRI, Mandiri, SeaBank). Halaman ini otomatis mendeteksi pembayaran dalam beberapa detik."
                       : "Admin belum mengisi String QRIS GoPay Merchant di /admin → Pengaturan QRIS & Telegram."}
@@ -279,7 +286,7 @@ export default function OrderDetailClient({
                   <button
                     onClick={handleCheckStatus}
                     disabled={checking}
-                    className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
+                    className="brutal-btn bg-white px-4 py-2.5 rounded-xl text-zinc-900 text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
                   >
                     <RefreshCw
                       className={`w-3.5 h-3.5 ${checking ? "animate-spin" : ""}`}
@@ -291,7 +298,7 @@ export default function OrderDetailClient({
                     <button
                       onClick={handleConfirmPayment}
                       disabled={paying}
-                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs inline-flex items-center gap-2 transition shadow-lg shadow-emerald-600/20 disabled:opacity-60 cursor-pointer"
+                      className="brutal-btn bg-[#A7F3D0] px-5 py-2.5 rounded-xl text-zinc-900 font-black text-xs inline-flex items-center gap-2 disabled:opacity-60 cursor-pointer"
                     >
                       {paying ? (
                         <>
@@ -313,7 +320,7 @@ export default function OrderDetailClient({
             {/* Paid & Delivered Accounts Section */}
             {order.status === "paid" && (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold">
+                <div className="flex items-center gap-2 text-emerald-800 text-sm font-black">
                   <KeyRound className="w-4 h-4" />
                   Detail Akun Premium Anda ({order.deliveredItems.length})
                 </div>
@@ -321,19 +328,19 @@ export default function OrderDetailClient({
                 {order.deliveredItems.map((item, idx) => (
                   <div
                     key={idx}
-                    className="rounded-2xl bg-zinc-950 border border-emerald-500/30 p-4 space-y-2"
+                    className="rounded-xl bg-[#A7F3D0]/50 border-2 border-zinc-900 p-4 space-y-2"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                      <span className="font-mono text-[11px] font-black uppercase text-zinc-900">
                         Akun #{idx + 1}
                       </span>
                       <button
                         onClick={() => copyText(item.credentials, idx)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 transition cursor-pointer"
+                        className="brutal-btn bg-white inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-zinc-900 cursor-pointer"
                       >
                         {copiedIdx === idx ? (
                           <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="w-3.5 h-3.5 text-emerald-700" />
                             Disalin
                           </>
                         ) : (
@@ -345,24 +352,22 @@ export default function OrderDetailClient({
                       </button>
                     </div>
 
-                    <div className="font-mono text-xs sm:text-sm bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white break-all select-all">
+                    <div className="font-mono text-xs sm:text-sm bg-white border-2 border-zinc-900 rounded-xl p-3 text-zinc-900 font-bold break-all select-all">
                       {item.credentials}
                     </div>
 
                     {item.note && (
-                      <p className="text-xs text-zinc-400">
-                        <span className="text-zinc-300 font-medium">Catatan:</span>{" "}
-                        {item.note}
+                      <p className="text-xs text-zinc-800">
+                        <span className="font-black">Catatan:</span> {item.note}
                       </p>
                     )}
                   </div>
                 ))}
 
-                <div className="flex items-center gap-2 text-xs text-zinc-400 pt-2">
-                  <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0" />
-                  Simpan nomor invoice <strong className="text-white">{order.id}</strong>{" "}
-                  untuk membuka ulang detail akun ini kapan saja melalui menu Lacak
-                  Pesanan.
+                <div className="flex items-center gap-2 text-xs text-zinc-700 pt-2">
+                  <ShieldCheck className="w-4 h-4 text-zinc-900 shrink-0" />
+                  Simpan nomor invoice <strong className="font-mono text-zinc-900">{order.id}</strong>{" "}
+                  untuk membuka ulang detail akun ini kapan saja lewat menu Lacak Pesanan.
                 </div>
               </div>
             )}

@@ -1,35 +1,68 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #f4f4f5;
+  --background: #f6f1e7;
+  --foreground: #18181b;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   min-height: 100vh;
 }
 
-.bg-grid-pattern {
-  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
+.dot-bg {
+  background-color: #f6f1e7;
+  background-image: radial-gradient(rgba(24, 24, 27, 0.14) 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
-/* Custom scrollbar */
+.brutal-card {
+  border: 2px solid #18181b;
+  box-shadow: 5px 5px 0px 0px #18181b;
+}
+
+.brutal-card-sm {
+  border: 2px solid #18181b;
+  box-shadow: 3px 3px 0px 0px #18181b;
+}
+
+.brutal-btn {
+  border: 2px solid #18181b;
+  box-shadow: 3px 3px 0px 0px #18181b;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.brutal-btn:hover:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px #18181b;
+}
+
+.brutal-btn:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 0px 0px 0px 0px #18181b;
+}
+
+.brutal-input {
+  background-color: #ffffff;
+  border: 2px solid #18181b;
+  color: #18181b;
+}
+
+.brutal-input:focus {
+  outline: none;
+  box-shadow: 3px 3px 0px 0px #18181b;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #09090b;
+  background: #f6f1e7;
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: #18181b;
   border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
 }

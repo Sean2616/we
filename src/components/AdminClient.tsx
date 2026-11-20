@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Copy,
   Database,
+  Image as ImageIcon,
   KeyRound,
   Loader2,
   Lock,
@@ -24,6 +25,7 @@ import {
   Settings,
   Tag,
   Trash2,
+  Upload,
   X,
   Zap,
 } from "lucide-react";
@@ -46,6 +48,48 @@ function formatRupiah(value: number) {
   }).format(value);
 }
 
+/**
+ * Kompres gambar logo produk di browser menjadi 128x128px (ringan ~4-8 KB)
+ * agar bisa langsung disimpan permanen di GitHub Gist tanpa layanan storage berbayar.
+ */
+function resizeImageToDataUrl(file: File, maxSize = 128): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Gagal membaca file gambar"));
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onerror = () => reject(new Error("File bukan gambar yang valid"));
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas tidak didukung"));
+
+        // Center-crop square
+        const scale = Math.max(maxSize / img.width, maxSize / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        const x = (maxSize - w) / 2;
+        const y = (maxSize - h) / 2;
+
+        ctx.clearRect(0, 0, maxSize, maxSize);
+        ctx.drawImage(img, x, y, w, h);
+
+        // Gunakan WebP jika didukung, fallback PNG
+        const webp = canvas.toDataURL("image/webp", 0.85);
+        if (webp.startsWith("data:image/webp")) {
+          resolve(webp);
+        } else {
+          resolve(canvas.toDataURL("image/png"));
+        }
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 interface AdminStats {
   totalProducts: number;
   totalAvailableStock: number;
@@ -66,6 +110,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
   const [categories, setCategories] = useState<string[]>(FALLBACK_CATEGORIES);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
+
   const [stats, setStats] = useState<AdminStats>({
     totalProducts: 0,
     totalAvailableStock: 0,
@@ -79,7 +124,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
   const [activeTab, setActiveTab] = useState<"stock" | "orders" | "settings">("stock");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Settings State (QRIS GoPay Merchant + Telegram)
+  // Settings State
   const [qrisStaticString, setQrisStaticString] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("gopay-webhook-secret-2026");
   const [telegramBotToken, setTelegramBotToken] = useState("");
@@ -108,7 +153,8 @@ export default function AdminClient({ storeName }: { storeName: string }) {
   const [pOriginalPrice, setPOriginalPrice] = useState("");
   const [pBadge, setPBadge] = useState("");
   const [pIcon, setPIcon] = useState("");
-  const [pAccent, setPAccent] = useState("#6366F1");
+  const [pLogoUrl, setPLogoUrl] = useState("");
+  const [pAccent, setPAccent] = useState("#FAAE2B");
   const [pDesc, setPDesc] = useState("");
   const [pFeatures, setPFeatures] = useState("");
   const [savingProduct, setSavingProduct] = useState(false);
@@ -126,13 +172,14 @@ export default function AdminClient({ storeName }: { storeName: string }) {
   function hydrateEditor(prod: Product | null) {
     if (!prod) {
       setPName("");
-      setPCategory("Streaming");
+      setPCategory(categories[0] || "Streaming");
       setPDuration("1 Bulan");
       setPPrice("");
       setPOriginalPrice("");
       setPBadge("");
       setPIcon("");
-      setPAccent("#6366F1");
+      setPLogoUrl("");
+      setPAccent("#FAAE2B");
       setPDesc("");
       setPFeatures("Garansi Full Durasi\nAuto Kirim 24/7");
       return;
@@ -144,6 +191,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
     setPOriginalPrice(prod.originalPrice ? String(prod.originalPrice) : "");
     setPBadge(prod.badge || "");
     setPIcon(prod.icon);
+    setPLogoUrl(prod.logoUrl || "");
     setPAccent(prod.accentColor);
     setPDesc(prod.description);
     setPFeatures(prod.features.join("\n"));
@@ -252,6 +300,23 @@ export default function AdminClient({ storeName }: { storeName: string }) {
     hydrateEditor(null);
   }
 
+  async function handleLogoFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 128);
+      setPLogoUrl(dataUrl);
+      showToast("Logo siap! Klik 'Simpan Produk' untuk menyimpan.");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Gagal memproses gambar logo",
+        "err"
+      );
+    } finally {
+      e.target.value = "";
+    }
+  }
+
   async function handleSaveProduct(e: React.FormEvent) {
     e.preventDefault();
     setSavingProduct(true);
@@ -271,6 +336,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
           originalPrice: pOriginalPrice ? Number(pOriginalPrice) : null,
           badge: pBadge,
           icon: pIcon,
+          logoUrl: pLogoUrl,
           accentColor: pAccent,
           description: pDesc,
           features: pFeatures,
@@ -291,7 +357,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
         setSelectedId(savedProd.id);
         hydrateEditor(savedProd);
       }
-      showToast("Produk berhasil disimpan ke server!");
+      showToast("Produk berhasil disimpan!");
     } catch {
       showToast("Terjadi kesalahan jaringan", "err");
     } finally {
@@ -307,8 +373,9 @@ export default function AdminClient({ storeName }: { storeName: string }) {
       method: "DELETE",
       headers: { "x-admin-key": adminKey },
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      showToast("Gagal menghapus produk", "err");
+      showToast(data.error || "Gagal menghapus produk", "err");
       return;
     }
     setSelectedId(null);
@@ -508,65 +575,73 @@ export default function AdminClient({ storeName }: { storeName: string }) {
     }
   }
 
-  // LOGIN SCREEN
+  // LOGIN SCREEN (Saweria Neo-Brutalism)
   if (!authenticated) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 bg-grid-pattern flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-3xl bg-zinc-900/90 border border-zinc-800 p-7 shadow-2xl">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mb-5 shadow-lg shadow-indigo-500/20">
-            <Lock className="w-6 h-6 text-white" />
-          </div>
-          <h1 className="text-xl font-bold text-white">Admin Panel — {storeName}</h1>
-          <p className="text-xs text-zinc-400 mt-1 mb-6">
-            Kelola produk, stok akun otomatis, dan pesanan langsung dari Vercel.
-          </p>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            {authError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
-                {authError}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                ADMIN_PASSWORD
-              </label>
-              <input
-                type="password"
-                required
-                value={inputPassword}
-                onChange={(e) => setInputPassword(e.target.value)}
-                placeholder="Masukkan password admin..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
-              />
+      <div className="min-h-screen dot-bg text-zinc-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-2xl bg-white brutal-card overflow-hidden">
+          <div className="bg-[#FAAE2B] border-b-2 border-zinc-900 p-6 flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-white border-2 border-zinc-900 flex items-center justify-center shrink-0">
+              <Lock className="w-6 h-6 text-zinc-900" />
             </div>
+            <div>
+              <h1 className="text-lg font-black text-zinc-900 leading-tight">
+                Admin Panel — {storeName}
+              </h1>
+              <p className="font-mono text-[11px] font-bold text-zinc-800 mt-0.5">
+                KELOLA STOK • QRIS GOPAY • TELEGRAM
+              </p>
+            </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60"
-            >
-              {authLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Memverifikasi...
-                </>
-              ) : (
-                <>
-                  <KeyRound className="w-4 h-4" />
-                  Masuk Dashboard Admin
-                </>
+          <div className="p-6">
+            <form onSubmit={handleLogin} className="space-y-4">
+              {authError && (
+                <div className="p-3 rounded-xl bg-[#FCA5A5] border-2 border-zinc-900 text-zinc-900 text-xs font-bold">
+                  {authError}
+                </div>
               )}
-            </button>
-          </form>
 
-          <div className="mt-6 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-500">
-            <Link href="/" className="hover:text-zinc-300 inline-flex items-center gap-1">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Kembali ke Toko
-            </Link>
-            <span>Full Serverless Vercel</span>
+              <div>
+                <label className="block font-mono text-[11px] font-bold text-zinc-800 mb-1.5">
+                  ADMIN_PASSWORD
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={inputPassword}
+                  onChange={(e) => setInputPassword(e.target.value)}
+                  placeholder="Masukkan password admin..."
+                  className="w-full px-3.5 py-2.5 rounded-xl brutal-input text-sm font-medium"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-2.5 rounded-xl brutal-btn bg-[#A7F3D0] text-zinc-900 font-black text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                {authLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Memverifikasi...
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="w-4 h-4" />
+                    Masuk Dashboard Admin
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t-2 border-dashed border-zinc-300 flex items-center justify-between text-xs font-mono font-bold text-zinc-600">
+              <Link href="/" className="hover:text-zinc-900 inline-flex items-center gap-1">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Kembali ke Toko
+              </Link>
+              <span>Full Vercel</span>
+            </div>
           </div>
         </div>
       </div>
@@ -576,31 +651,28 @@ export default function AdminClient({ storeName }: { storeName: string }) {
   const selectedProduct = products.find((p) => p.id === selectedId) || null;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 bg-grid-pattern pb-16">
+    <div className="min-h-screen dot-bg text-zinc-900 pb-16">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 bg-[#f6f1e7]/95 backdrop-blur border-b-2 border-zinc-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-[#FAAE2B] brutal-card-sm flex items-center justify-center">
+              <Zap className="w-5 h-5 text-zinc-900 fill-zinc-900" />
             </div>
             <div>
-              <h1 className="font-bold text-sm sm:text-base text-white leading-tight">
+              <h1 className="font-black text-sm sm:text-base text-zinc-900 leading-tight">
                 Admin Dashboard — {storeName}
               </h1>
-              <div className="flex items-center gap-2 text-[11px] text-zinc-400">
-                <Database className="w-3 h-3 text-emerald-400" />
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-zinc-700">
+                <Database className="w-3 h-3 text-emerald-700" />
                 <span>
-                  Storage:{" "}
-                  <strong className="text-zinc-200">
-                    {storageMode === "github-gist"
-                      ? "GitHub Gist (Gratis & Permanen)"
-                      : storageMode === "upstash-redis"
-                      ? "Upstash Redis (Permanen)"
-                      : storageMode === "local-json"
-                      ? "Local JSON (Dev)"
-                      : "In-Memory (Sementara)"}
-                  </strong>
+                  {storageMode === "github-gist"
+                    ? "GitHub Gist (Gratis & Permanen)"
+                    : storageMode === "upstash-redis"
+                    ? "Upstash Redis (Permanen)"
+                    : storageMode === "local-json"
+                    ? "Local JSON (Dev)"
+                    : "In-Memory (Sementara)"}
                 </span>
               </div>
             </div>
@@ -610,20 +682,20 @@ export default function AdminClient({ storeName }: { storeName: string }) {
             <button
               onClick={() => fetchAdminState(adminKey, true)}
               disabled={loadingData}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium text-zinc-300 cursor-pointer"
+              className="brutal-btn bg-white inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-zinc-900 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingData ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
             <Link
               href="/"
-              className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium text-zinc-300"
+              className="brutal-btn bg-[#8BD3DD] px-3 py-2 rounded-xl text-xs font-bold text-zinc-900"
             >
               Lihat Toko
             </Link>
             <button
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-xs font-semibold text-rose-300 cursor-pointer"
+              className="brutal-btn bg-[#FCA5A5] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-zinc-900 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Keluar</span>
@@ -633,15 +705,15 @@ export default function AdminClient({ storeName }: { storeName: string }) {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* Warning if running on Vercel without persistent storage */}
+        {/* Storage Warning */}
         {storageMode === "memory" && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl bg-[#FDE68A] brutal-card-sm text-zinc-900 text-xs flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-zinc-900 shrink-0 mt-0.5" />
             <div>
               <strong>Perhatian — Storage Sementara Aktif di Vercel:</strong>{" "}
-              Agar stok & pesanan tersimpan permanen <strong>100% GRATIS tanpa kartu kredit</strong>,
-              tambahkan <code>GITHUB_TOKEN</code> dan <code>GITHUB_GIST_ID</code> di
-              Vercel Environment Variables (lihat panduan di README.md), lalu Redeploy.
+              Tambahkan <code>GITHUB_TOKEN</code> dan <code>GITHUB_GIST_ID</code> di
+              Vercel Environment Variables lalu Redeploy agar stok tersimpan permanen
+              100% gratis.
             </div>
           </div>
         )}
@@ -649,10 +721,10 @@ export default function AdminClient({ storeName }: { storeName: string }) {
         {/* Toast */}
         {toast && (
           <div
-            className={`p-3.5 rounded-2xl text-xs font-medium flex items-center gap-2 border ${
+            className={`p-3.5 rounded-xl brutal-card-sm text-xs font-bold flex items-center gap-2 ${
               toast.type === "ok"
-                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                ? "bg-[#A7F3D0] text-zinc-900"
+                : "bg-[#FCA5A5] text-zinc-900"
             }`}
           >
             <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -662,43 +734,51 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
         {/* Stats Row */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-          <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4">
-            <div className="text-xs text-zinc-400">Total Produk</div>
-            <div className="text-2xl font-extrabold text-white mt-1">
+          <div className="rounded-2xl bg-white brutal-card-sm p-4">
+            <div className="font-mono text-[10px] font-bold uppercase text-zinc-500">
+              Total Produk
+            </div>
+            <div className="text-2xl font-black text-zinc-900 mt-1">
               {stats.totalProducts}
             </div>
           </div>
-          <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4">
-            <div className="text-xs text-zinc-400">Stok Siap Kirim</div>
-            <div className="text-2xl font-extrabold text-emerald-400 mt-1">
+          <div className="rounded-2xl bg-[#A7F3D0] brutal-card-sm p-4">
+            <div className="font-mono text-[10px] font-bold uppercase text-zinc-700">
+              Stok Siap Kirim
+            </div>
+            <div className="text-2xl font-black text-zinc-900 mt-1">
               {stats.totalAvailableStock}
             </div>
           </div>
-          <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4">
-            <div className="text-xs text-zinc-400">Order Lunas / Total</div>
-            <div className="text-2xl font-extrabold text-indigo-400 mt-1">
+          <div className="rounded-2xl bg-[#8BD3DD] brutal-card-sm p-4">
+            <div className="font-mono text-[10px] font-bold uppercase text-zinc-700">
+              Order Lunas / Total
+            </div>
+            <div className="text-2xl font-black text-zinc-900 mt-1">
               {stats.paidOrdersCount}{" "}
-              <span className="text-sm font-medium text-zinc-500">
+              <span className="text-sm font-bold text-zinc-700">
                 / {stats.totalOrders}
               </span>
             </div>
           </div>
-          <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4">
-            <div className="text-xs text-zinc-400">Total Omzet</div>
-            <div className="text-xl sm:text-2xl font-extrabold text-white mt-1">
+          <div className="rounded-2xl bg-[#FAAE2B] brutal-card-sm p-4">
+            <div className="font-mono text-[10px] font-bold uppercase text-zinc-800">
+              Total Omzet
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-zinc-900 mt-1">
               {formatRupiah(stats.totalRevenue)}
             </div>
           </div>
         </section>
 
         {/* Tabs */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2.5">
           <button
             onClick={() => setActiveTab("stock")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+            className={`brutal-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black cursor-pointer ${
               activeTab === "stock"
-                ? "bg-indigo-600 text-white"
-                : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                ? "bg-[#FAAE2B] text-zinc-900"
+                : "bg-white text-zinc-800"
             }`}
           >
             <Package className="w-4 h-4" />
@@ -706,10 +786,10 @@ export default function AdminClient({ storeName }: { storeName: string }) {
           </button>
           <button
             onClick={() => setActiveTab("orders")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+            className={`brutal-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black cursor-pointer ${
               activeTab === "orders"
-                ? "bg-indigo-600 text-white"
-                : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                ? "bg-[#FAAE2B] text-zinc-900"
+                : "bg-white text-zinc-800"
             }`}
           >
             <Receipt className="w-4 h-4" />
@@ -717,10 +797,10 @@ export default function AdminClient({ storeName }: { storeName: string }) {
           </button>
           <button
             onClick={() => setActiveTab("settings")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+            className={`brutal-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black cursor-pointer ${
               activeTab === "settings"
-                ? "bg-indigo-600 text-white"
-                : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                ? "bg-[#FAAE2B] text-zinc-900"
+                : "bg-white text-zinc-800"
             }`}
           >
             <Settings className="w-4 h-4" />
@@ -732,11 +812,11 @@ export default function AdminClient({ storeName }: { storeName: string }) {
         {activeTab === "stock" && (
           <div className="space-y-5">
             {/* Dynamic Category Manager */}
-            <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-4 space-y-3">
+            <div className="rounded-2xl bg-white brutal-card-sm p-4 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-indigo-400" />
-                  <h2 className="font-bold text-sm text-white">
+                  <Tag className="w-4 h-4 text-zinc-900" />
+                  <h2 className="font-black text-sm text-zinc-900">
                     Kelola Kategori Produk ({categories.length})
                   </h2>
                 </div>
@@ -744,13 +824,13 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                   <input
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="Kategori baru (misal: VPN, Gaming, Cloud)"
-                    className="w-56 sm:w-64 px-3 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+                    placeholder="Kategori baru (VPN, Gaming, Cloud)"
+                    className="w-56 sm:w-64 px-3 py-1.5 rounded-xl brutal-input text-xs font-medium"
                   />
                   <button
                     type="submit"
                     disabled={addingCategory}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60 whitespace-nowrap"
+                    className="brutal-btn bg-[#A7F3D0] inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-zinc-900 text-xs font-black cursor-pointer disabled:opacity-60 whitespace-nowrap"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Tambah
@@ -761,365 +841,424 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                 {categories.map((cat) => (
                   <span
                     key={cat}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-200"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#f6f1e7] border-2 border-zinc-900 text-xs font-bold text-zinc-900"
                   >
                     {cat}
                     <button
                       type="button"
                       onClick={() => handleDeleteCategory(cat)}
-                      className="text-zinc-500 hover:text-rose-400 cursor-pointer"
+                      className="text-zinc-600 hover:text-rose-700 cursor-pointer"
                       title={`Hapus kategori ${cat}`}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </span>
                 ))}
               </div>
             </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Left Sidebar: Product List */}
-            <div className="lg:col-span-4 rounded-3xl bg-zinc-900/80 border border-zinc-800 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-bold text-sm text-white">Daftar Produk</h2>
-                <button
-                  onClick={startNewProduct}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Produk Baru
-                </button>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Left Sidebar: Product List */}
+              <div className="lg:col-span-4 rounded-2xl bg-white brutal-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-black text-sm text-zinc-900">Daftar Produk</h2>
+                  <button
+                    onClick={startNewProduct}
+                    className="brutal-btn bg-[#FAAE2B] inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-zinc-900 text-xs font-black cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Produk Baru
+                  </button>
+                </div>
 
-              <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                {products.map((prod) => {
-                  const avail = prod.stock.filter(
-                    (s) => s.status === "available"
-                  ).length;
-                  const active = prod.id === selectedId;
-                  return (
-                    <button
-                      key={prod.id}
-                      onClick={() => selectProduct(prod)}
-                      className={`w-full text-left p-3 rounded-2xl border transition cursor-pointer ${
-                        active
-                          ? "bg-indigo-500/15 border-indigo-500"
-                          : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-xs text-white truncate">
-                          {prod.name}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                            avail > 0
-                              ? "bg-emerald-500/15 text-emerald-300"
-                              : "bg-rose-500/15 text-rose-400"
-                          }`}
-                        >
-                          Stok: {avail}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
-                        <span>
-                          {prod.category} • {prod.duration}
-                        </span>
-                        <span className="font-semibold text-zinc-200">
-                          {formatRupiah(prod.price)}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Right Content: Editor & Bulk Stock */}
-            <div className="lg:col-span-8 space-y-5">
-              {/* Product Form */}
-              <form
-                onSubmit={handleSaveProduct}
-                className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-5 space-y-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="font-bold text-sm text-white">
-                    {selectedProduct
-                      ? `Edit Produk: ${selectedProduct.name}`
-                      : "Tambah Produk Baru"}
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    {selectedProduct && (
+                <div className="space-y-2.5 max-h-[560px] overflow-y-auto pr-1">
+                  {products.map((prod) => {
+                    const avail = prod.stock.filter(
+                      (s) => s.status === "available"
+                    ).length;
+                    const active = prod.id === selectedId;
+                    return (
                       <button
-                        type="button"
-                        onClick={handleDeleteProduct}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-semibold cursor-pointer"
+                        key={prod.id}
+                        onClick={() => selectProduct(prod)}
+                        className={`w-full text-left p-3 rounded-xl border-2 border-zinc-900 transition cursor-pointer flex items-center gap-3 ${
+                          active
+                            ? "bg-[#FDE68A] shadow-[3px_3px_0px_0px_#18181b]"
+                            : "bg-[#f6f1e7] hover:bg-white"
+                        }`}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Hapus
+                        <div className="w-10 h-10 rounded-lg bg-white border-2 border-zinc-900 flex items-center justify-center font-black text-xs text-zinc-900 shrink-0 overflow-hidden">
+                          {prod.logoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={prod.logoUrl}
+                              alt={prod.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span>{prod.icon}</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-black text-xs text-zinc-900 truncate">
+                              {prod.name}
+                            </span>
+                            <span
+                              className={`font-mono px-2 py-0.5 rounded-md border border-zinc-900 text-[10px] font-black shrink-0 ${
+                                avail > 0
+                                  ? "bg-[#A7F3D0] text-zinc-900"
+                                  : "bg-[#FCA5A5] text-zinc-900"
+                              }`}
+                            >
+                              Stok: {avail}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between font-mono text-[11px] text-zinc-700 mt-1">
+                            <span className="truncate">
+                              {prod.category} • {prod.duration}
+                            </span>
+                            <span className="font-black text-zinc-900 shrink-0">
+                              {formatRupiah(prod.price)}
+                            </span>
+                          </div>
+                        </div>
                       </button>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={savingProduct}
-                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      {savingProduct ? "Menyimpan..." : "Simpan Produk"}
-                    </button>
-                  </div>
+                    );
+                  })}
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Nama Produk
-                    </label>
-                    <input
-                      required
-                      value={pName}
-                      onChange={(e) => setPName(e.target.value)}
-                      placeholder="Netflix Premium 4K"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Kategori
-                    </label>
-                    <select
-                      value={pCategory}
-                      onChange={(e) =>
-                        setPCategory(e.target.value as ProductCategory)
-                      }
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    >
-                      {categories.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Durasi
-                    </label>
-                    <input
-                      required
-                      value={pDuration}
-                      onChange={(e) => setPDuration(e.target.value)}
-                      placeholder="1 Bulan (1P1U)"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Harga Jual (Rp)
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={pPrice}
-                      onChange={(e) => setPPrice(e.target.value)}
-                      placeholder="35000"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Harga Coret (Opsional)
-                    </label>
-                    <input
-                      type="number"
-                      value={pOriginalPrice}
-                      onChange={(e) => setPOriginalPrice(e.target.value)}
-                      placeholder="54000"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Badge (Opsional)
-                    </label>
-                    <input
-                      value={pBadge}
-                      onChange={(e) => setPBadge(e.target.value)}
-                      placeholder="Terlaris / Instant"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Kode Ikon (2-3 huruf)
-                    </label>
-                    <input
-                      maxLength={3}
-                      value={pIcon}
-                      onChange={(e) => setPIcon(e.target.value)}
-                      placeholder="NF"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Warna Aksen (Hex)
-                    </label>
-                    <input
-                      value={pAccent}
-                      onChange={(e) => setPAccent(e.target.value)}
-                      placeholder="#E50914"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-zinc-400 mb-1">
-                    Deskripsi Singkat
-                  </label>
-                  <input
-                    value={pDesc}
-                    onChange={(e) => setPDesc(e.target.value)}
-                    placeholder="Akun legal bergaransi penuh..."
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-zinc-400 mb-1">
-                    Fitur Unggulan (1 baris = 1 fitur)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={pFeatures}
-                    onChange={(e) => setPFeatures(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </form>
-
-              {/* Stock Manager */}
-              {selectedProduct && (
-                <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-5 space-y-4">
-                  <div>
-                    <h2 className="font-bold text-sm text-white">
-                      Stok Akun Otomatis — {selectedProduct.name}
+              {/* Right Content: Editor & Bulk Stock */}
+              <div className="lg:col-span-8 space-y-5">
+                {/* Product Form */}
+                <form
+                  onSubmit={handleSaveProduct}
+                  className="rounded-2xl bg-white brutal-card p-5 space-y-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b-2 border-dashed border-zinc-300">
+                    <h2 className="font-black text-sm text-zinc-900">
+                      {selectedProduct
+                        ? `Edit Produk: ${selectedProduct.name}`
+                        : "Tambah Produk Baru"}
                     </h2>
-                    <p className="text-xs text-zinc-400">
-                      Paste banyak akun sekaligus (1 baris = 1 stok akun yang akan
-                      dikirim otomatis ke pembeli).
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleAddBulkStock} className="space-y-3">
-                    <textarea
-                      rows={4}
-                      required
-                      value={bulkLines}
-                      onChange={(e) => setBulkLines(e.target.value)}
-                      placeholder={
-                        "akun1@mail.com | Pass123 | Profile 1 PIN 1234\nakun2@mail.com | Pass456 | Profile 2 PIN 5678"
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
-                    />
-                    <div className="flex flex-col sm:flex-row gap-2.5">
-                      <input
-                        value={bulkNote}
-                        onChange={(e) => setBulkNote(e.target.value)}
-                        placeholder="Catatan untuk pembeli (opsional, misal: Jangan ubah password)"
-                        className="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
-                      />
+                    <div className="flex items-center gap-2">
+                      {selectedProduct && (
+                        <button
+                          type="button"
+                          onClick={handleDeleteProduct}
+                          className="brutal-btn bg-[#FCA5A5] inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-zinc-900 text-xs font-black cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Hapus
+                        </button>
+                      )}
                       <button
                         type="submit"
-                        disabled={addingStock}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                        disabled={savingProduct}
+                        className="brutal-btn bg-[#A7F3D0] inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-zinc-900 text-xs font-black cursor-pointer disabled:opacity-60"
                       >
-                        <Plus className="w-4 h-4" />
-                        {addingStock ? "Menambahkan..." : "Tambah Stok"}
+                        <Save className="w-3.5 h-3.5" />
+                        {savingProduct ? "Menyimpan..." : "Simpan Produk"}
                       </button>
                     </div>
-                  </form>
+                  </div>
 
-                  <div className="overflow-x-auto pt-2">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-zinc-800 text-zinc-400 text-[11px] uppercase">
-                          <th className="py-2 pr-3">Status</th>
-                          <th className="py-2 pr-3">Kredensial Akun</th>
-                          <th className="py-2 pr-3">Catatan / Order</th>
-                          <th className="py-2 text-right">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-800/70">
-                        {[...selectedProduct.stock]
-                          .sort((a, b) => (a.status === "available" ? -1 : 1))
-                          .map((item) => (
-                            <tr key={item.id}>
-                              <td className="py-2.5 pr-3 whitespace-nowrap">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    item.status === "available"
-                                      ? "bg-emerald-500/15 text-emerald-300"
-                                      : "bg-amber-500/15 text-amber-300"
-                                  }`}
-                                >
-                                  {item.status === "available"
-                                    ? "READY"
-                                    : "TERJUAL"}
-                                </span>
-                              </td>
-                              <td className="py-2.5 pr-3 font-mono text-[11px] text-zinc-200 break-all">
-                                {item.credentials}
-                              </td>
-                              <td className="py-2.5 pr-3 text-zinc-400">
-                                {item.orderId && (
-                                  <div className="font-mono text-[11px] text-indigo-400 font-semibold">
-                                    {item.orderId}
-                                  </div>
-                                )}
-                                <div>{item.note || "-"}</div>
-                              </td>
-                              <td className="py-2.5 text-right">
-                                <button
-                                  onClick={() => handleDeleteStock(item.id)}
-                                  className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/15 cursor-pointer"
-                                  title="Hapus stok"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                  {/* Logo Uploader */}
+                  <div className="p-3.5 rounded-xl bg-[#f6f1e7] border-2 border-zinc-900 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-white border-2 border-zinc-900 flex items-center justify-center shrink-0 overflow-hidden">
+                      {pLogoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={pLogoUrl}
+                          alt="Preview Logo"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon className="w-7 h-7 text-zinc-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 w-full space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="brutal-btn bg-[#FAAE2B] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black text-zinc-900 cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" />
+                          Upload Gambar Logo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLogoFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        {pLogoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setPLogoUrl("")}
+                            className="brutal-btn bg-white px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-700 cursor-pointer"
+                          >
+                            Hapus Logo
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        value={pLogoUrl}
+                        onChange={(e) => setPLogoUrl(e.target.value)}
+                        placeholder="Atau tempel URL gambar logo (https://...)"
+                        className="w-full px-3 py-1.5 rounded-lg brutal-input text-[11px] font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Nama Produk
+                      </label>
+                      <input
+                        required
+                        value={pName}
+                        onChange={(e) => setPName(e.target.value)}
+                        placeholder="Netflix Premium 4K"
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Kategori
+                      </label>
+                      <select
+                        value={pCategory}
+                        onChange={(e) =>
+                          setPCategory(e.target.value as ProductCategory)
+                        }
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      >
+                        {categories.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Durasi
+                      </label>
+                      <input
+                        required
+                        value={pDuration}
+                        onChange={(e) => setPDuration(e.target.value)}
+                        placeholder="1 Bulan (1P1U)"
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Harga Jual (Rp)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={pPrice}
+                        onChange={(e) => setPPrice(e.target.value)}
+                        placeholder="35000"
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Harga Coret (Opsional)
+                      </label>
+                      <input
+                        type="number"
+                        value={pOriginalPrice}
+                        onChange={(e) => setPOriginalPrice(e.target.value)}
+                        placeholder="54000"
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Badge (Opsional)
+                      </label>
+                      <input
+                        value={pBadge}
+                        onChange={(e) => setPBadge(e.target.value)}
+                        placeholder="TERLARIS / INSTANT"
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Kode Ikon (Cadangan jika tanpa logo)
+                      </label>
+                      <input
+                        maxLength={3}
+                        value={pIcon}
+                        onChange={(e) => setPIcon(e.target.value)}
+                        placeholder="NF"
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                        Warna Aksen (Hex)
+                      </label>
+                      <input
+                        value={pAccent}
+                        onChange={(e) => setPAccent(e.target.value)}
+                        placeholder="#FAAE2B"
+                        className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                      Deskripsi Singkat
+                    </label>
+                    <input
+                      value={pDesc}
+                      onChange={(e) => setPDesc(e.target.value)}
+                      placeholder="Akun legal bergaransi penuh..."
+                      className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-[10px] font-bold uppercase text-zinc-600 mb-1">
+                      Fitur Unggulan (1 baris = 1 fitur)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={pFeatures}
+                      onChange={(e) => setPFeatures(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-semibold"
+                    />
+                  </div>
+                </form>
+
+                {/* Stock Manager */}
+                {selectedProduct && (
+                  <div className="rounded-2xl bg-white brutal-card p-5 space-y-4">
+                    <div>
+                      <h2 className="font-black text-sm text-zinc-900">
+                        Stok Akun Otomatis — {selectedProduct.name}
+                      </h2>
+                      <p className="text-xs text-zinc-600">
+                        Paste banyak akun sekaligus (1 baris = 1 stok akun yang dikirim
+                        otomatis ke pembeli).
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleAddBulkStock} className="space-y-3">
+                      <textarea
+                        rows={4}
+                        required
+                        value={bulkLines}
+                        onChange={(e) => setBulkLines(e.target.value)}
+                        placeholder={
+                          "akun1@mail.com | Pass123 | Profile 1 PIN 1234\nakun2@mail.com | Pass456 | Profile 2 PIN 5678"
+                        }
+                        className="w-full px-3 py-2.5 rounded-xl brutal-input font-mono text-xs"
+                      />
+                      <div className="flex flex-col sm:flex-row gap-2.5">
+                        <input
+                          value={bulkNote}
+                          onChange={(e) => setBulkNote(e.target.value)}
+                          placeholder="Catatan untuk pembeli (opsional, misal: Jangan ubah password)"
+                          className="flex-1 px-3 py-2 rounded-xl brutal-input text-xs font-medium"
+                        />
+                        <button
+                          type="submit"
+                          disabled={addingStock}
+                          className="brutal-btn bg-[#A7F3D0] px-4 py-2 rounded-xl text-zinc-900 text-xs font-black inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                        >
+                          <Plus className="w-4 h-4" />
+                          {addingStock ? "Menambahkan..." : "Tambah Stok"}
+                        </button>
+                      </div>
+                    </form>
+
+                    <div className="overflow-x-auto pt-2">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b-2 border-zinc-900 font-mono text-[10px] uppercase text-zinc-600">
+                            <th className="py-2 pr-3">Status</th>
+                            <th className="py-2 pr-3">Kredensial Akun</th>
+                            <th className="py-2 pr-3">Catatan / Order</th>
+                            <th className="py-2 text-right">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-200">
+                          {[...selectedProduct.stock]
+                            .sort((a, b) => (a.status === "available" ? -1 : 1))
+                            .map((item) => (
+                              <tr key={item.id}>
+                                <td className="py-2.5 pr-3 whitespace-nowrap">
+                                  <span
+                                    className={`font-mono px-2 py-0.5 rounded-md border border-zinc-900 text-[10px] font-black ${
+                                      item.status === "available"
+                                        ? "bg-[#A7F3D0] text-zinc-900"
+                                        : "bg-[#FDE68A] text-zinc-900"
+                                    }`}
+                                  >
+                                    {item.status === "available"
+                                      ? "READY"
+                                      : "TERJUAL"}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 pr-3 font-mono text-[11px] font-semibold text-zinc-900 break-all">
+                                  {item.credentials}
+                                </td>
+                                <td className="py-2.5 pr-3 text-zinc-700">
+                                  {item.orderId && (
+                                    <div className="font-mono text-[11px] font-black text-zinc-900">
+                                      {item.orderId}
+                                    </div>
+                                  )}
+                                  <div>{item.note || "-"}</div>
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <button
+                                    onClick={() => handleDeleteStock(item.id)}
+                                    className="p-1.5 rounded-lg bg-[#FCA5A5] border border-zinc-900 text-zinc-900 cursor-pointer"
+                                    title="Hapus stok"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          {selectedProduct.stock.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={4}
+                                className="py-8 text-center text-zinc-500 font-medium"
+                              >
+                                Stok kosong. Paste daftar akun pada form di atas.
                               </td>
                             </tr>
-                          ))}
-                        {selectedProduct.stock.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan={4}
-                              className="py-8 text-center text-zinc-500"
-                            >
-                              Stok kosong. Paste daftar akun pada form di atas.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
           </div>
         )}
 
         {/* TAB 2: ORDERS */}
         {activeTab === "orders" && (
-          <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-5 overflow-x-auto">
-            <h2 className="font-bold text-sm text-white mb-4">
+          <div className="rounded-2xl bg-white brutal-card p-5 overflow-x-auto">
+            <h2 className="font-black text-sm text-zinc-900 mb-4">
               Semua Pesanan Masuk
             </h2>
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-zinc-800 text-zinc-400 text-[11px] uppercase">
+                <tr className="border-b-2 border-zinc-900 font-mono text-[10px] uppercase text-zinc-600">
                   <th className="py-2.5 pr-3">Invoice</th>
                   <th className="py-2.5 pr-3">Pembeli</th>
                   <th className="py-2.5 pr-3">Produk</th>
@@ -1128,11 +1267,11 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                   <th className="py-2.5 pr-3">Akun Terkirim / Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/70">
+              <tbody className="divide-y divide-zinc-200">
                 {orders.map((order) => (
                   <tr key={order.id}>
-                    <td className="py-3 pr-3 font-mono font-bold text-indigo-400 whitespace-nowrap">
-                      <Link href={`/order/${order.id}`} className="hover:underline">
+                    <td className="py-3 pr-3 font-mono font-black text-zinc-900 whitespace-nowrap">
+                      <Link href={`/order/${order.id}`} className="underline">
                         {order.id}
                       </Link>
                       <div className="text-[10px] font-sans font-normal text-zinc-500">
@@ -1140,35 +1279,38 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                       </div>
                     </td>
                     <td className="py-3 pr-3">
-                      <div className="font-semibold text-white">
+                      <div className="font-bold text-zinc-900">
                         {order.customerName}
                       </div>
-                      <div className="text-[11px] text-zinc-400">
+                      <div className="text-[11px] text-zinc-600">
                         {order.customerEmail} • {order.customerWhatsapp}
                       </div>
                     </td>
                     <td className="py-3 pr-3">
-                      <div className="text-zinc-200 font-medium">
+                      <div className="text-zinc-900 font-bold">
                         {order.productName} × {order.quantity}
                       </div>
-                      <div className="text-[11px] text-zinc-500">
+                      <div className="font-mono text-[11px] text-zinc-500">
                         {order.paymentMethod}
                       </div>
                     </td>
-                    <td className="py-3 pr-3 font-bold text-white whitespace-nowrap">
+                    <td className="py-3 pr-3 font-black text-zinc-900 whitespace-nowrap">
                       {formatRupiah(order.payableAmount ?? order.totalPrice)}
                       {order.uniqueCode ? (
-                        <div className="text-[10px] font-normal text-indigo-400">
-                          {order.uniqueCode > 0 ? `+${order.uniqueCode}` : order.uniqueCode} kode unik
+                        <div className="font-mono text-[10px] font-bold text-zinc-600">
+                          {order.uniqueCode > 0
+                            ? `+${order.uniqueCode}`
+                            : order.uniqueCode}{" "}
+                          kode unik
                         </div>
                       ) : null}
                     </td>
                     <td className="py-3 pr-3 whitespace-nowrap">
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`font-mono px-2 py-0.5 rounded-md border border-zinc-900 text-[10px] font-black ${
                           order.status === "paid"
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : "bg-amber-500/15 text-amber-300"
+                            ? "bg-[#A7F3D0] text-zinc-900"
+                            : "bg-[#FDE68A] text-zinc-900"
                         }`}
                       >
                         {order.status === "paid" ? "LUNAS" : "PENDING"}
@@ -1176,7 +1318,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                     </td>
                     <td className="py-3 pr-3">
                       {order.status === "paid" ? (
-                        <div className="font-mono text-[11px] text-zinc-300 space-y-1">
+                        <div className="font-mono text-[11px] font-semibold text-zinc-800 space-y-1">
                           {order.deliveredItems.map((d, i) => (
                             <div key={i} className="break-all">
                               {d.credentials}
@@ -1186,7 +1328,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                       ) : (
                         <button
                           onClick={() => handleManualConfirmOrder(order.id)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold cursor-pointer"
+                          className="brutal-btn bg-[#A7F3D0] px-3 py-1.5 rounded-lg text-zinc-900 text-[11px] font-black cursor-pointer"
                         >
                           Konfirmasi & Kirim Akun
                         </button>
@@ -1211,19 +1353,19 @@ export default function AdminClient({ storeName }: { storeName: string }) {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             <form
               onSubmit={handleSaveSettings}
-              className="lg:col-span-7 rounded-3xl bg-zinc-900/80 border border-zinc-800 p-5 space-y-5"
+              className="lg:col-span-7 rounded-2xl bg-white brutal-card p-5 space-y-5"
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 pb-3 border-b-2 border-dashed border-zinc-300">
                 <div className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-indigo-400" />
-                  <h2 className="font-bold text-sm text-white">
+                  <QrCode className="w-5 h-5 text-zinc-900" />
+                  <h2 className="font-black text-sm text-zinc-900">
                     QRIS GoPay Merchant & Notifikasi Telegram
                   </h2>
                 </div>
                 <button
                   type="submit"
                   disabled={savingSettings}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60"
+                  className="brutal-btn bg-[#A7F3D0] inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-zinc-900 text-xs font-black cursor-pointer disabled:opacity-60"
                 >
                   <Save className="w-3.5 h-3.5" />
                   {savingSettings ? "Menyimpan..." : "Simpan Pengaturan"}
@@ -1232,7 +1374,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
               {/* QRIS Static String */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-zinc-200">
+                <label className="block font-mono text-[11px] font-bold uppercase text-zinc-800">
                   String QRIS Statis GoPay Merchant
                 </label>
                 <textarea
@@ -1240,40 +1382,37 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                   value={qrisStaticString}
                   onChange={(e) => setQrisStaticString(e.target.value)}
                   placeholder="00020101021126670016COM.NOBUBANK.WWW...5802ID...6304XXXX"
-                  className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-[11px] text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2.5 rounded-xl brutal-input font-mono text-[11px]"
                 />
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  Cara ambil: Download gambar QRIS dari aplikasi{" "}
-                  <strong className="text-zinc-200">GoPay Merchant</strong> → scan
-                  gambarnya dengan aplikasi QR Scanner (atau web QR decoder) → salin
-                  teks yang diawali <code className="text-indigo-300">000201...</code>{" "}
-                  lalu tempel di sini. Sistem otomatis mengubahnya menjadi QRIS Dinamis
-                  dengan nominal + kode unik!
+                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                  Scan gambar QRIS dari aplikasi <strong>GoPay Merchant</strong>{" "}
+                  dengan QR Scanner → salin teks <code>000201...</code> lalu tempel di
+                  sini. Sistem otomatis mengubahnya menjadi QRIS Dinamis valid!
                 </p>
               </div>
 
               {/* Webhook Secret */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-zinc-200">
-                  Webhook Secret (Untuk Auto-Confirm GoPay Merchant)
+                <label className="block font-mono text-[11px] font-bold uppercase text-zinc-800">
+                  Webhook Secret (Auto-Confirm GoPay Merchant)
                 </label>
                 <input
                   value={webhookSecret}
                   onChange={(e) => setWebhookSecret(e.target.value)}
                   placeholder="gopay-webhook-secret-2026"
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl brutal-input font-mono text-xs"
                 />
               </div>
 
               {/* Custom Unique Code */}
-              <div className="space-y-2.5 p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800">
-                <div className="text-xs font-bold text-white">
-                  Pengaturan Kode Unik QRIS (Agar Tidak Memberatkan Pembeli)
+              <div className="space-y-2.5 p-4 rounded-xl bg-[#f6f1e7] border-2 border-zinc-900">
+                <div className="text-xs font-black text-zinc-900">
+                  Pengaturan Kode Unik QRIS
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Mode Kode Unik
+                    <label className="block font-mono text-[10px] font-bold text-zinc-700 mb-1">
+                      MODE KODE UNIK
                     </label>
                     <select
                       value={uniqueCodeMode}
@@ -1282,16 +1421,16 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                           e.target.value as "add" | "subtract" | "none"
                         )
                       }
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-bold"
                     >
                       <option value="add">Tambah ke Harga (+Rp)</option>
-                      <option value="subtract">Potong Harga / Diskon (-Rp)</option>
+                      <option value="subtract">Potong Harga (-Rp)</option>
                       <option value="none">Tanpa Kode Unik (Rp 0)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Minimal (Rp)
+                    <label className="block font-mono text-[10px] font-bold text-zinc-700 mb-1">
+                      MINIMAL (RP)
                     </label>
                     <input
                       type="number"
@@ -1300,12 +1439,12 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                       disabled={uniqueCodeMode === "none"}
                       value={uniqueCodeMin}
                       onChange={(e) => setUniqueCodeMin(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white disabled:opacity-40 focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-bold disabled:opacity-40"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Maksimal (Rp)
+                    <label className="block font-mono text-[10px] font-bold text-zinc-700 mb-1">
+                      MAKSIMAL (RP)
                     </label>
                     <input
                       type="number"
@@ -1314,26 +1453,25 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                       disabled={uniqueCodeMode === "none"}
                       value={uniqueCodeMax}
                       onChange={(e) => setUniqueCodeMax(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white disabled:opacity-40 focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl brutal-input text-xs font-bold disabled:opacity-40"
                     />
                   </div>
                 </div>
-                <p className="text-[11px] text-zinc-400">
-                  Tips: Pilih <strong>Potong Harga (-Rp)</strong> dengan rentang{" "}
-                  <code>1</code> – <code>99</code> agar pembeli tidak terbebani
-                  biaya tambahan, tapi nominal setiap invoice tetap unik untuk
-                  auto-confirm GoPay Merchant!
+                <p className="text-[11px] text-zinc-700">
+                  Tips: Pilih <strong>Potong Harga (-Rp)</strong> rentang{" "}
+                  <code>1</code>–<code>99</code> agar pembeli tidak terbebani biaya
+                  tambahan, namun nominal tiap invoice tetap unik!
                 </p>
               </div>
 
-              <hr className="border-zinc-800" />
+              <hr className="border-t-2 border-dashed border-zinc-300" />
 
               {/* Telegram Bot */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-sky-400" />
-                    <span className="text-xs font-bold text-white">
+                    <Bell className="w-4 h-4 text-zinc-900" />
+                    <span className="text-xs font-black text-zinc-900">
                       Notifikasi Bot Telegram
                     </span>
                   </div>
@@ -1341,7 +1479,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                     type="button"
                     onClick={handleTestTelegram}
                     disabled={testingTelegram}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 text-xs font-semibold cursor-pointer disabled:opacity-60"
+                    className="brutal-btn bg-[#8BD3DD] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-zinc-900 text-xs font-black cursor-pointer disabled:opacity-60"
                   >
                     <Send className="w-3.5 h-3.5" />
                     {testingTelegram ? "Mengirim..." : "Test Kirim Telegram"}
@@ -1350,32 +1488,32 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Telegram Bot Token (dari @BotFather)
+                    <label className="block font-mono text-[10px] font-bold text-zinc-700 mb-1">
+                      TELEGRAM BOT TOKEN (@BotFather)
                     </label>
                     <input
                       type="password"
                       value={telegramBotToken}
                       onChange={(e) => setTelegramBotToken(e.target.value)}
                       placeholder="123456789:AAH..."
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl brutal-input font-mono text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-zinc-400 mb-1">
-                      Telegram Chat ID (dari @userinfobot)
+                    <label className="block font-mono text-[10px] font-bold text-zinc-700 mb-1">
+                      TELEGRAM CHAT ID (@userinfobot)
                     </label>
                     <input
                       value={telegramChatId}
                       onChange={(e) => setTelegramChatId(e.target.value)}
                       placeholder="123456789"
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl brutal-input font-mono text-xs"
                     />
                   </div>
                 </div>
               </div>
 
-              <hr className="border-zinc-800" />
+              <hr className="border-t-2 border-dashed border-zinc-300" />
 
               {/* Demo Mode Toggle */}
               <label className="flex items-start gap-3 cursor-pointer">
@@ -1383,15 +1521,14 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                   type="checkbox"
                   checked={enableDemoConfirm}
                   onChange={(e) => setEnableDemoConfirm(e.target.checked)}
-                  className="mt-1 rounded"
+                  className="mt-1 w-4 h-4 accent-zinc-900"
                 />
                 <div>
-                  <div className="text-xs font-semibold text-white">
+                  <div className="text-xs font-black text-zinc-900">
                     Aktifkan Tombol &quot;Simulasi Bayar (Demo)&quot; di Halaman Pembeli
                   </div>
-                  <div className="text-[11px] text-zinc-400">
-                    Matikan (uncheck) saat toko sudah live agar pembeli tidak bisa
-                    mengklik tombol simulasi sendiri dan wajib membayar lewat QRIS
+                  <div className="text-[11px] text-zinc-600">
+                    Matikan saat toko sudah live agar pembeli wajib membayar lewat QRIS
                     GoPay Merchant.
                   </div>
                 </div>
@@ -1400,34 +1537,27 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
             {/* Right Guide & Webhook Tester */}
             <div className="lg:col-span-5 space-y-5">
-              {/* Webhook URL Box */}
-              <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-5 space-y-3">
-                <h3 className="font-bold text-sm text-white">
-                  Cara Auto-Confirm GoPay Merchant (MacroDroid Android)
+              <div className="rounded-2xl bg-[#8BD3DD] brutal-card p-5 space-y-3">
+                <h3 className="font-black text-sm text-zinc-900">
+                  Cara Auto-Confirm GoPay Merchant (MacroDroid)
                 </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Agar pembayaran QRIS GoPay Merchant langsung mengirim akun secara{" "}
-                  <strong className="text-emerald-300">otomatis 24/7</strong>, pasang
-                  aplikasi <strong>MacroDroid</strong> (gratis di Play Store) di HP
-                  yang terpasang GoPay Merchant:
-                </p>
-                <ol className="text-xs text-zinc-300 space-y-1.5 list-decimal list-inside">
+                <ol className="text-xs font-medium text-zinc-900 space-y-1.5 list-decimal list-inside">
                   <li>
                     <strong>Trigger:</strong> Notification Received → Pilih aplikasi{" "}
-                    <strong>GoPay Merchant</strong> (Text Content: Any).
+                    <strong>GoPay Merchant</strong>.
                   </li>
                   <li>
                     <strong>Action:</strong> HTTP Request → Method{" "}
-                    <code className="text-indigo-300">POST</code>, Content-Type{" "}
-                    <code className="text-indigo-300">application/json</code>.
+                    <code className="font-bold">POST</code>, Content-Type{" "}
+                    <code className="font-bold">application/json</code>.
                   </li>
                   <li>
-                    <strong>URL:</strong> Salin URL webhook di bawah ini:
+                    <strong>URL Webhook:</strong>
                   </li>
                 </ol>
 
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
-                  <code className="text-[11px] text-indigo-300 break-all flex-1">
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border-2 border-zinc-900">
+                  <code className="text-[11px] font-bold text-zinc-900 break-all flex-1">
                     {typeof window !== "undefined"
                       ? `${window.location.origin}/api/webhook/gopay?secret=${webhookSecret}`
                       : `/api/webhook/gopay?secret=${webhookSecret}`}
@@ -1440,36 +1570,35 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                       setCopiedWebhook(true);
                       setTimeout(() => setCopiedWebhook(false), 2000);
                     }}
-                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer shrink-0"
+                    className="p-1.5 rounded-lg bg-[#FAAE2B] border border-zinc-900 text-zinc-900 cursor-pointer shrink-0"
                   >
                     {copiedWebhook ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5" />
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
                   </button>
                 </div>
 
-                <div className="text-[11px] text-zinc-400">
+                <div className="text-[11px] text-zinc-900">
                   <strong>Body JSON di MacroDroid:</strong>
-                  <pre className="mt-1 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-emerald-300 overflow-x-auto">
+                  <pre className="mt-1 p-2.5 rounded-xl bg-white border-2 border-zinc-900 font-mono font-bold text-zinc-900 overflow-x-auto">
 {`{"text": "[not_title] [notification]"}`}
                   </pre>
                 </div>
               </div>
 
-              {/* Webhook Simulator */}
               <form
                 onSubmit={handleTestWebhook}
-                className="rounded-3xl bg-zinc-900/80 border border-zinc-800 p-5 space-y-3"
+                className="rounded-2xl bg-white brutal-card p-5 space-y-3"
               >
-                <h3 className="font-bold text-sm text-white">
+                <h3 className="font-black text-sm text-zinc-900">
                   Simulasi Webhook GoPay Merchant
                 </h3>
-                <p className="text-xs text-zinc-400">
-                  Uji verifikasi otomatis: masukkan nominal persis (termasuk kode
-                  unik, misal <code className="text-indigo-300">35147</code>) dari
-                  salah satu order PENDING.
+                <p className="text-xs text-zinc-600">
+                  Masukkan nominal tepat (termasuk kode unik, misal{" "}
+                  <code>34988</code>) dari salah satu order PENDING untuk menguji
+                  auto-kirim akun.
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -1477,13 +1606,13 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                     required
                     value={simAmount}
                     onChange={(e) => setSimAmount(e.target.value)}
-                    placeholder="Contoh: 35147"
-                    className="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    placeholder="Contoh: 34988"
+                    className="flex-1 px-3 py-2 rounded-xl brutal-input text-xs font-bold"
                   />
                   <button
                     type="submit"
                     disabled={testingWebhook}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60"
+                    className="brutal-btn bg-[#A7F3D0] px-4 py-2 rounded-xl text-zinc-900 text-xs font-black cursor-pointer disabled:opacity-60"
                   >
                     {testingWebhook ? "Testing..." : "Simulasikan"}
                   </button>

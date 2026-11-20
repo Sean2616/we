@@ -23,6 +23,7 @@ export interface Product {
   features: string[];
   accentColor: string;
   icon: string;
+  logoUrl?: string;
   stock: StockItem[];
   updatedAt: string;
 }

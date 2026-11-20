@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       features?: string[] | string;
       accentColor?: string;
       icon?: string;
+      logoUrl?: string;
     };
 
     const db = await readDatabase();
@@ -60,6 +61,10 @@ export async function POST(request: Request) {
         features: features.length ? features : existing.features,
         accentColor: String(body.accentColor || existing.accentColor).trim(),
         icon: String(body.icon || existing.icon).trim().slice(0, 3).toUpperCase(),
+        logoUrl:
+          body.logoUrl !== undefined
+            ? String(body.logoUrl).trim() || undefined
+            : existing.logoUrl,
         updatedAt: now,
       };
     } else {
@@ -94,6 +99,7 @@ export async function POST(request: Request) {
             .trim()
             .slice(0, 3)
             .toUpperCase() || "PR",
+        logoUrl: body.logoUrl ? String(body.logoUrl).trim() : undefined,
         stock: [],
         updatedAt: now,
       });

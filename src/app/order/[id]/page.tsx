@@ -16,18 +16,18 @@ export default async function OrderPage({
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-3xl bg-zinc-900 border border-zinc-800 p-8 text-center">
-          <h1 className="text-xl font-bold text-white mb-2">
+      <div className="min-h-screen dot-bg text-zinc-900 flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl bg-white brutal-card p-8 text-center">
+          <h1 className="text-xl font-black text-zinc-900 mb-2">
             Invoice Tidak Ditemukan
           </h1>
-          <p className="text-xs text-zinc-400 mb-6">
-            Nomor invoice <span className="font-mono text-zinc-200">{id}</span> tidak
+          <p className="text-xs text-zinc-600 mb-6">
+            Nomor invoice <span className="font-mono font-bold text-zinc-900">{id}</span> tidak
             terdaftar di sistem.
           </p>
           <Link
             href="/"
-            className="inline-block px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold"
+            className="brutal-btn inline-block px-5 py-2.5 rounded-xl bg-[#FAAE2B] text-zinc-900 text-sm font-black"
           >
             Kembali ke Beranda
           </Link>
