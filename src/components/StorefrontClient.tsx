@@ -512,9 +512,14 @@ export default function StorefrontClient({
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-900 py-8 text-center text-xs text-zinc-500">
-        © {new Date().getFullYear()} {storeName}. Powered by Next.js + Local Stock Sync
-        Server.
+      <footer className="border-t border-zinc-900 py-8 text-center text-xs text-zinc-500 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+        <span>© {new Date().getFullYear()} {storeName}. Full Serverless Auto-Order on Vercel.</span>
+        <a
+          href="/admin"
+          className="text-zinc-600 hover:text-zinc-300 underline underline-offset-4 transition"
+        >
+          Admin Panel
+        </a>
       </footer>
 
       {/* Checkout Modal */}
