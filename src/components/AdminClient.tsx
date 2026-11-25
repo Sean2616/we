@@ -604,7 +604,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
 
               <div>
                 <label className="block font-mono text-[11px] font-bold text-zinc-800 mb-1.5">
-                  ADMIN_PASSWORD
+                  PASSWORD ADMIN
                 </label>
                 <input
                   type="password"
@@ -640,7 +640,7 @@ export default function AdminClient({ storeName }: { storeName: string }) {
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Kembali ke Toko
               </Link>
-              <span>Full Vercel</span>
+              <span>Sean Premium</span>
             </div>
           </div>
         </div>

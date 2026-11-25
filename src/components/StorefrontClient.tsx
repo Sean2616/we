@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
-  Clock,
   CreditCard,
   History,
   Loader2,
@@ -65,7 +64,7 @@ export default function StorefrontClient({
   const [products, setProducts] = useState<PublicProduct[]>(initialProducts);
   const [categories, setCategories] = useState<string[]>(initialCategories);
   const [stats, setStats] = useState(initialStats);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(initialLastSyncedAt);
+  const [, setLastSyncedAt] = useState<string | null>(initialLastSyncedAt);
   const [refreshing, setRefreshing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,18 +88,32 @@ export default function StorefrontClient({
   const [trackerError, setTrackerError] = useState<string | null>(null);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const matchCategory =
-        selectedCategory === "Semua" || p.category === selectedCategory;
-      const q = searchQuery.trim().toLowerCase();
-      const matchSearch =
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q);
-      return matchCategory && matchSearch;
-    });
+    return products
+      .filter((p) => {
+        const matchCategory =
+          selectedCategory === "Semua" || p.category === selectedCategory;
+        const q = searchQuery.trim().toLowerCase();
+        const matchSearch =
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q);
+        return matchCategory && matchSearch;
+      })
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, "id", { sensitivity: "base", numeric: true })
+      );
   }, [products, searchQuery, selectedCategory]);
+
+  // Tutup modal checkout dengan tombol Escape
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedProduct(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedProduct]);
 
   async function refreshStock() {
     setRefreshing(true);
@@ -289,18 +302,12 @@ export default function StorefrontClient({
               </div>
             </div>
 
-            {lastSyncedAt && (
-              <p className="font-mono text-[10px] sm:text-[11px] font-semibold text-zinc-900/75 mt-3.5 flex items-center gap-1.5">
-                <Clock className="w-3 h-3 shrink-0" />
-                Update: {new Date(lastSyncedAt).toLocaleString("id-ID")}
-              </p>
-            )}
           </div>
         </section>
 
         {/* Category Filter & Search */}
         <section className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5">
+          <div className="flex items-center gap-2 overflow-x-auto pt-0.5 pb-2 pl-0.5 pr-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {["Semua", ...categories].map((cat) => {
               const active = selectedCategory === cat;
               return (
@@ -325,7 +332,7 @@ export default function StorefrontClient({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari Netflix, Spotify, Canva..."
+              placeholder="Cari HMA VPN, Zoom, Crunchyroll..."
               className="w-full pl-10 pr-4 py-2.5 rounded-xl brutal-input text-sm font-medium placeholder:text-zinc-400 shadow-[3px_3px_0px_0px_#18181b]"
             />
           </div>
@@ -475,7 +482,7 @@ export default function StorefrontClient({
 
         {/* Trust Badges */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="brutal-card-sm rounded-2xl bg-white p-5 flex items-start gap-3.5">
+          <div className="brutal-card-sm rounded-2xl bg-white p-5 flex items-start gap-3.5 h-full">
             <div className="p-2.5 rounded-xl bg-[#FAAE2B] border-2 border-zinc-900 text-zinc-900">
               <Zap className="w-5 h-5" />
             </div>
@@ -487,7 +494,7 @@ export default function StorefrontClient({
               </p>
             </div>
           </div>
-          <div className="brutal-card-sm rounded-2xl bg-[#A7F3D0] p-5 flex items-start gap-3.5">
+          <div className="brutal-card-sm rounded-2xl bg-[#A7F3D0] p-5 flex items-start gap-3.5 h-full">
             <div className="p-2.5 rounded-xl bg-white border-2 border-zinc-900 text-zinc-900">
               <ShieldCheck className="w-5 h-5" />
             </div>
@@ -498,7 +505,7 @@ export default function StorefrontClient({
               </p>
             </div>
           </div>
-          <div className="brutal-card-sm rounded-2xl bg-[#8BD3DD] p-5 flex items-start gap-3.5">
+          <div className="brutal-card-sm rounded-2xl bg-[#8BD3DD] p-5 flex items-start gap-3.5 h-full">
             <div className="p-2.5 rounded-xl bg-white border-2 border-zinc-900 text-zinc-900">
               <CreditCard className="w-5 h-5" />
             </div>
@@ -528,7 +535,7 @@ export default function StorefrontClient({
       {/* Checkout Modal (Mobile Bottom-Sheet Friendly) */}
       {selectedProduct && (
         <div className="fixed inset-0 z-50 bg-zinc-900/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4">
-          <div className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-[#f6f1e7] brutal-card overflow-hidden max-h-[92vh] flex flex-col">
+          <div role="dialog" aria-modal="true" aria-label="Checkout Auto Order" className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-[#f6f1e7] brutal-card overflow-hidden max-h-[92vh] flex flex-col">
             <div className="px-5 py-4 bg-[#FAAE2B] border-b-2 border-zinc-900 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {selectedProduct.logoUrl && (
@@ -549,8 +556,10 @@ export default function StorefrontClient({
                 </div>
               </div>
               <button
+                type="button"
+                aria-label="Tutup"
                 onClick={() => setSelectedProduct(null)}
-                className="w-8 h-8 rounded-lg bg-white border-2 border-zinc-900 flex items-center justify-center text-zinc-900 cursor-pointer"
+                className="w-10 h-10 rounded-lg bg-white border-2 border-zinc-900 flex items-center justify-center text-zinc-900 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -577,8 +586,10 @@ export default function StorefrontClient({
                 <div className="flex items-center gap-2.5">
                   <button
                     type="button"
+                    aria-label="Kurangi jumlah"
+                    disabled={quantity <= 1}
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className="w-8 h-8 rounded-lg bg-[#f6f1e7] border-2 border-zinc-900 text-zinc-900 font-black cursor-pointer"
+                    className="w-10 h-10 rounded-lg bg-[#f6f1e7] border-2 border-zinc-900 text-zinc-900 font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     -
                   </button>
@@ -587,10 +598,12 @@ export default function StorefrontClient({
                   </span>
                   <button
                     type="button"
+                    aria-label="Tambah jumlah"
+                    disabled={quantity >= selectedProduct.stockCount}
                     onClick={() =>
                       setQuantity((q) => Math.min(selectedProduct.stockCount, q + 1))
                     }
-                    className="w-8 h-8 rounded-lg bg-[#FAAE2B] border-2 border-zinc-900 text-zinc-900 font-black cursor-pointer"
+                    className="w-10 h-10 rounded-lg bg-[#FAAE2B] border-2 border-zinc-900 text-zinc-900 font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     +
                   </button>
@@ -599,10 +612,11 @@ export default function StorefrontClient({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-mono text-[11px] font-bold text-zinc-800 mb-1">
+                  <label htmlFor="co-name" className="block font-mono text-[11px] font-bold text-zinc-800 mb-1">
                     NAMA LENGKAP
                   </label>
                   <input
+                    id="co-name"
                     type="text"
                     required
                     value={customerName}
@@ -612,11 +626,15 @@ export default function StorefrontClient({
                   />
                 </div>
                 <div>
-                  <label className="block font-mono text-[11px] font-bold text-zinc-800 mb-1">
+                  <label htmlFor="co-wa" className="block font-mono text-[11px] font-bold text-zinc-800 mb-1">
                     NO. WHATSAPP
                   </label>
                   <input
+                    id="co-wa"
                     type="tel"
+                    inputMode="numeric"
+                    pattern="(\+?62|0)8[0-9]{8,12}"
+                    title="Masukkan nomor WhatsApp valid, contoh: 081234567890"
                     required
                     value={customerWhatsapp}
                     onChange={(e) => setCustomerWhatsapp(e.target.value)}
@@ -627,10 +645,11 @@ export default function StorefrontClient({
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] font-bold text-zinc-800 mb-1">
+                <label htmlFor="co-email" className="block font-mono text-[11px] font-bold text-zinc-800 mb-1">
                   EMAIL (UNTUK LACAK INVOICE)
                 </label>
                 <input
+                  id="co-email"
                   type="email"
                   required
                   value={customerEmail}
